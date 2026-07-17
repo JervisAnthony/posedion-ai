@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "poseidon-ai"
+version = "0.1.0"
+description = "A modular AI platform for underwater computer vision, diver safety, ocean intelligence, dive analytics, and operational monitoring."
+readme = "README.md"
+requires-python = ">=3.13,<3.14"
+license = "MIT"
+license-files = ["LICENSE"]
+
+authors = [
+    { name = "Jervis Anthony Saldanha" }
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
