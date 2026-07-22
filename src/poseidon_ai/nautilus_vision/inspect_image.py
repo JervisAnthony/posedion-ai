@@ -3,9 +3,13 @@
 from __future__ import annotations
 
 import argparse
+import logging
 from pathlib import Path
 
+from poseidon_ai.logging_config import configure_logging
 from poseidon_ai.nautilus_vision.image_metadata import get_image_metadata
+
+logger = logging.getLogger(__name__)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -25,8 +29,12 @@ def build_parser() -> argparse.ArgumentParser:
 def main() -> None:
     """Run the image metadata inspection command."""
 
+    configure_logging()
+
     parser = build_parser()
     args = parser.parse_args()
+
+    logger.info("Inspecting image: %s", args.image_path)
 
     try:
         metadata = get_image_metadata(args.image_path)
