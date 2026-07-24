@@ -1,6 +1,7 @@
 """Tests for Poseidon AI logging configuration."""
 
 import logging
+from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
 from poseidon_ai.logging_config import configure_logging
@@ -33,3 +34,28 @@ def test_configure_logging_without_file() -> None:
         isinstance(handler, logging.StreamHandler)
         for handler in root_logger.handlers
     )
+
+def test_configure_logging_uses_rotating_file_handler(
+    tmp_path: Path,
+) -> None:
+    """Logging configuration should use a rotating file handler."""
+
+    log_file = tmp_path / "poseidon.log"
+
+    configure_logging(
+        log_file=log_file,
+        max_bytes=1024,
+        backup_count=2,
+    )
+
+    root_logger = logging.getLogger()
+
+    rotating_handlers = [
+        handler
+        for handler in root_logger.handlers
+        if isinstance(handler, RotatingFileHandler)
+    ]
+
+    assert len(rotating_handlers) == 1
+    assert rotating_handlers[0].maxBytes == 1024
+    assert rotating_handlers[0].backupCount == 2
