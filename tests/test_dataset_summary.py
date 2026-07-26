@@ -152,3 +152,38 @@ def test_main_writes_summary_to_file(
     assert captured.out == ""
     assert "Dataset Summary" in report
     assert "Total Images      : 4" in report
+
+def test_main_prints_markdown_summary(
+    monkeypatch,
+    capsys,
+) -> None:
+    """Print the dataset summary as Markdown."""
+
+    stats = create_statistics()
+
+    monkeypatch.setattr(
+        dataset_summary,
+        "analyze_dataset",
+        lambda dataset_path: stats,
+    )
+
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "dataset-summary",
+            "data/sample_dataset",
+            "--format",
+            "markdown",
+        ],
+    )
+
+    dataset_summary.main()
+
+    captured = capsys.readouterr()
+
+    assert "# Dataset Summary" in captured.out
+    assert "## Overview" in captured.out
+    assert "| Total Images | 4 |" in captured.out
+    assert "| Average | 906.67 |" in captured.out
+    assert "| Size | 2.00 KB |" in captured.out

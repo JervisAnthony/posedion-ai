@@ -10,6 +10,9 @@ from poseidon_ai.nautilus_vision.dataset_analyzer import analyze_dataset
 from poseidon_ai.nautilus_vision.dataset_csv import format_dataset_csv
 from poseidon_ai.nautilus_vision.dataset_statistics import DatasetStatistics
 from poseidon_ai.utils.filesize import format_file_size
+from poseidon_ai.nautilus_vision.dataset_markdown import (
+    format_dataset_markdown,
+)
 
 def format_dataset_summary(
     dataset_path: Path,
@@ -94,9 +97,9 @@ def main() -> None:
 
     parser.add_argument(
         "--format",
-        choices=("text", "json", "csv"),
+        choices=("text", "json", "csv", "markdown"),
         default="text",
-        help="Output format: text, JSON, or CSV.",
+        help="Output format: text, JSON, CSV, or Markdown.",
     )
 
     parser.add_argument(
@@ -120,6 +123,11 @@ def main() -> None:
         )
     elif output_format == "csv":
         summary = format_dataset_csv(
+            dataset_path,
+            stats,
+        )
+    elif output_format == "markdown":
+        summary = format_dataset_markdown(
             dataset_path,
             stats,
         )
