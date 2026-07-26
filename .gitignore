@@ -223,3 +223,6 @@ __marimo__/
 # Application logs
 logs/
 *.log
+
+# Local datasets
+data/

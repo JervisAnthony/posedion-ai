@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 from pathlib import Path
 
 from poseidon_ai.nautilus_vision.dataset_analyzer import analyze_dataset
@@ -40,6 +41,38 @@ def format_dataset_summary(
         f"Dataset Size      : {format_file_size(stats.total_size_bytes)}\n"
     )
 
+def format_dataset_summary_json(
+    dataset_path: Path,
+    stats: DatasetStatistics,
+) -> str:
+    """Format dataset statistics as JSON."""
+
+    payload = {
+        "dataset_path": str(dataset_path),
+        "total_images": stats.total_images,
+        "valid_images": stats.valid_images,
+        "invalid_images": stats.invalid_images,
+        "width": {
+            "minimum": stats.min_width,
+            "maximum": stats.max_width,
+            "average": stats.average_width,
+        },
+        "height": {
+            "minimum": stats.min_height,
+            "maximum": stats.max_height,
+            "average": stats.average_height,
+        },
+        "total_size_bytes": stats.total_size_bytes,
+        "formatted_size": format_file_size(
+            stats.total_size_bytes
+        ),
+    }
+
+    return json.dumps(
+        payload,
+        indent=2,
+    )
+
 def main() -> None:
     """Run the dataset summary command."""
 
@@ -52,13 +85,29 @@ def main() -> None:
         help="Path to the image dataset.",
     )
 
+    parser.add_argument(
+    "--json",
+    action="store_true",
+    help="Output dataset statistics as JSON.",
+    )
+
     args = parser.parse_args()
 
     dataset_path = Path(args.dataset_path)
 
     stats = analyze_dataset(dataset_path)
 
-    summary = format_dataset_summary(dataset_path, stats)
+    if args.json:
+        summary = format_dataset_summary_json(
+            dataset_path,
+            stats,
+        )
+    else:
+        summary = format_dataset_summary(
+            dataset_path,
+            stats,
+        )
+
     print(summary)
 
 if __name__ == "__main__":
