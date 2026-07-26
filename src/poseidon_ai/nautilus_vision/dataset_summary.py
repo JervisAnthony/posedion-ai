@@ -7,6 +7,7 @@ from pathlib import Path
 
 from poseidon_ai.nautilus_vision.dataset_analyzer import analyze_dataset
 from poseidon_ai.nautilus_vision.dataset_statistics import DatasetStatistics
+from poseidon_ai.utils.filesize import format_file_size
 
 def format_dataset_summary(
     dataset_path: Path,
@@ -36,7 +37,7 @@ def format_dataset_summary(
         "\n"
         "Dataset Size\n"
         "------------\n"
-        f"Total Bytes       : {stats.total_size_bytes}\n"
+        f"Dataset Size      : {format_file_size(stats.total_size_bytes)}\n"
     )
 
 def main() -> None:
