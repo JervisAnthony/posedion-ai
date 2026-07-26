@@ -7,6 +7,7 @@ import json
 from pathlib import Path
 
 from poseidon_ai.nautilus_vision.dataset_analyzer import analyze_dataset
+from poseidon_ai.nautilus_vision.dataset_csv import format_dataset_csv
 from poseidon_ai.nautilus_vision.dataset_statistics import DatasetStatistics
 from poseidon_ai.utils.filesize import format_file_size
 
@@ -86,15 +87,22 @@ def main() -> None:
     )
 
     parser.add_argument(
-    "--json",
-    action="store_true",
-    help="Output dataset statistics as JSON.",
+        "--json",
+        action="store_true",
+        help="Output dataset statistics as JSON.",
     )
 
     parser.add_argument(
-    "--output",
-    type=Path,
-    help="Write the report to a file.",
+        "--format",
+        choices=("text", "json", "csv"),
+        default="text",
+        help="Output format: text, JSON, or CSV.",
+    )
+
+    parser.add_argument(
+        "--output",
+        type=Path,
+        help="Write the report to a file.",
     )
 
     args = parser.parse_args()
@@ -103,8 +111,15 @@ def main() -> None:
 
     stats = analyze_dataset(dataset_path)
 
-    if args.json:
+    output_format = "json" if args.json else args.format
+
+    if output_format == "json":
         summary = format_dataset_summary_json(
+            dataset_path,
+            stats,
+        )
+    elif output_format == "csv":
+        summary = format_dataset_csv(
             dataset_path,
             stats,
         )
