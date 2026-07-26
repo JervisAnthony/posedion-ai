@@ -226,3 +226,7 @@ logs/
 
 # Local datasets
 data/
+
+# Generated reports
+report.txt
+report.json

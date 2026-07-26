@@ -91,6 +91,12 @@ def main() -> None:
     help="Output dataset statistics as JSON.",
     )
 
+    parser.add_argument(
+    "--output",
+    type=Path,
+    help="Write the report to a file.",
+    )
+
     args = parser.parse_args()
 
     dataset_path = Path(args.dataset_path)
@@ -108,7 +114,13 @@ def main() -> None:
             stats,
         )
 
-    print(summary)
+    if args.output:
+        args.output.write_text(
+            summary,
+            encoding="utf-8",
+        )
+    else:
+        print(summary)
 
 if __name__ == "__main__":
     main()
