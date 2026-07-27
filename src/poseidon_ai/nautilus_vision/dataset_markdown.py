@@ -12,6 +12,20 @@ def format_dataset_markdown(
 ) -> str:
     """Return dataset statistics as Markdown."""
 
+    if stats.extension_counts:
+        image_formats = [
+            "| Format | Images |",
+            "|--------|-------:|",
+            *[
+                f"| {extension.upper()} | {count} |"
+                for extension, count in sorted(
+                    stats.extension_counts.items()
+                )
+            ],
+        ]
+    else:
+        image_formats = ["No supported image files found."]
+
     markdown_lines = [
         "# Dataset Summary",
         "",
@@ -23,6 +37,10 @@ def format_dataset_markdown(
         f"| Total Images | {stats.total_images} |",
         f"| Valid Images | {stats.valid_images} |",
         f"| Invalid Images | {stats.invalid_images} |",
+        "",
+        "## Image Formats",
+        "",
+        *image_formats,
         "",
         "## Width",
         "",

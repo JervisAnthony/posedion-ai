@@ -23,6 +23,11 @@ def create_statistics() -> DatasetStatistics:
         max_height=720,
         average_height=600.0,
         total_size_bytes=2048,
+        extension_counts={
+            "webp": 1,
+            "jpeg": 2,
+            "png": 1,
+        },
     )
 
 
@@ -38,6 +43,7 @@ def test_format_dataset_markdown() -> None:
 
     assert "# Dataset Summary" in result
     assert "## Overview" in result
+    assert "## Image Formats" in result
     assert "## Width" in result
     assert "## Height" in result
     assert "## Dataset Size" in result
@@ -46,6 +52,11 @@ def test_format_dataset_markdown() -> None:
     assert "| Total Images | 4 |" in result
     assert "| Valid Images | 3 |" in result
     assert "| Invalid Images | 1 |" in result
+    assert "| JPEG | 2 |" in result
+    assert "| PNG | 1 |" in result
+    assert "| WEBP | 1 |" in result
+    assert result.index("| JPEG |") < result.index("| PNG |")
+    assert result.index("| PNG |") < result.index("| WEBP |")
 
     assert "| Minimum | 640 |" in result
     assert "| Maximum | 1280 |" in result
@@ -56,3 +67,18 @@ def test_format_dataset_markdown() -> None:
     assert "| Average | 600.00 |" in result
 
     assert "| Size | 2.00 KB |" in result
+
+
+def test_format_dataset_markdown_with_no_images() -> None:
+    """Explain when no supported image formats were found."""
+
+    stats = create_statistics()
+    stats.extension_counts = {}
+
+    result = format_dataset_markdown(
+        Path("data/sample_dataset"),
+        stats,
+    )
+
+    assert "## Image Formats" in result
+    assert "No supported image files found." in result
