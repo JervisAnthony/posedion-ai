@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 
@@ -26,3 +26,5 @@ class DatasetStatistics:
 
     average_width: float = 0.0
     average_height: float = 0.0
+
+    extension_counts: dict[str, int] = field(default_factory=dict)
