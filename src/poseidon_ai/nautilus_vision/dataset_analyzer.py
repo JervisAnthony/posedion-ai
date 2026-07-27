@@ -5,7 +5,10 @@ from __future__ import annotations
 from pathlib import Path
 
 from poseidon_ai.nautilus_vision.dataset_loader import load_image_dataset
-from poseidon_ai.nautilus_vision.dataset_statistics import DatasetStatistics
+from poseidon_ai.nautilus_vision.dataset_statistics import (
+    DatasetStatistics,
+    InvalidImageDiagnostic,
+)
 from poseidon_ai.nautilus_vision.image_metadata import get_image_metadata
 from poseidon_ai.nautilus_vision.image_validator import validate_image
 
@@ -58,6 +61,14 @@ def analyze_dataset(
 
         if not validation_result.is_valid:
             stats.invalid_images += 1
+
+            stats.invalid_image_diagnostics.append(
+                InvalidImageDiagnostic(
+                    image_path=image_path,
+                    errors=validation_result.errors,
+                )
+            )
+
             continue
 
         metadata = get_image_metadata(image_path)

@@ -149,3 +149,61 @@ def test_analyze_normalizes_extension_case_and_aliases(
     }
     assert list(stats.extension_counts) == ["jpeg", "png", "tiff"]
     assert sum(stats.extension_counts.values()) == stats.total_images
+
+def test_analyze_dataset_captures_invalid_image_diagnostics(
+    tmp_path: Path,
+) -> None:
+    """Capture the path and validation errors for invalid images."""
+
+    invalid_path = tmp_path / "corrupt.jpg"
+    invalid_path.write_bytes(b"not a valid image")
+
+    stats = analyze_dataset(tmp_path)
+
+    assert stats.total_images == 1
+    assert stats.valid_images == 0
+    assert stats.invalid_images == 1
+
+    assert len(stats.invalid_image_diagnostics) == 1
+
+    diagnostic = stats.invalid_image_diagnostics[0]
+
+    assert diagnostic.image_path == invalid_path
+    assert diagnostic.errors == (
+        "Image could not be decoded.",
+    )
+
+def test_analyze_dataset_preserves_multiple_validation_errors(
+    tmp_path: Path,
+) -> None:
+    """Preserve every validation error associated with an image."""
+
+    image_path = tmp_path / "small.png"
+
+    image = np.zeros(
+        (10, 10, 3),
+        dtype=np.uint8,
+    )
+
+    cv2.imwrite(
+        str(image_path),
+        image,
+    )
+
+    stats = analyze_dataset(tmp_path)
+
+    assert stats.invalid_images == 1
+    assert len(stats.invalid_image_diagnostics) == 1
+
+    diagnostic = stats.invalid_image_diagnostics[0]
+
+    assert diagnostic.image_path == image_path
+    assert diagnostic.errors == (
+        "Width 10px is below minimum 32px.",
+        "Height 10px is below minimum 32px.",
+    )
+
+    assert (
+        len(stats.invalid_image_diagnostics)
+        == stats.invalid_images
+    )

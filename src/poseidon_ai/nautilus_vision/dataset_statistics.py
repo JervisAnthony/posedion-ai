@@ -6,6 +6,14 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 
+@dataclass(frozen=True, slots=True)
+class InvalidImageDiagnostic:
+    """Describes why an image failed dataset validation."""
+
+    image_path: Path
+    errors: tuple[str, ...]
+
+
 @dataclass(slots=True)
 class DatasetStatistics:
     """Represents summary statistics for an image dataset."""
@@ -28,3 +36,6 @@ class DatasetStatistics:
     average_height: float = 0.0
 
     extension_counts: dict[str, int] = field(default_factory=dict)
+    invalid_image_diagnostics: list[InvalidImageDiagnostic] = field(
+        default_factory=list
+    )
