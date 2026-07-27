@@ -32,6 +32,7 @@ def test_analyze_empty_dataset(tmp_path: Path) -> None:
     assert stats.total_images == 0
     assert stats.valid_images == 0
     assert stats.invalid_images == 0
+    assert stats.extension_counts == {}
 
 def test_analyze_single_valid_image(
     tmp_path: Path,
@@ -47,6 +48,8 @@ def test_analyze_single_valid_image(
     assert stats.total_images == 1
     assert stats.valid_images == 1
     assert stats.invalid_images == 0
+    assert stats.extension_counts == {"jpeg": 1}
+    assert sum(stats.extension_counts.values()) == stats.total_images
 
     assert stats.min_width == 100
     assert stats.max_width == 100
@@ -74,6 +77,8 @@ def test_analyze_mixed_valid_and_invalid_images(
     assert stats.total_images == 2
     assert stats.valid_images == 1
     assert stats.invalid_images == 1
+    assert stats.extension_counts == {"jpeg": 2}
+    assert sum(stats.extension_counts.values()) == stats.total_images
 
     assert stats.total_size_bytes > 0
 
@@ -93,3 +98,54 @@ def test_analyze_ignores_unsupported_files(
     assert stats.total_images == 1
     assert stats.valid_images == 1
     assert stats.invalid_images == 0
+    assert stats.extension_counts == {"jpeg": 1}
+
+
+def test_analyze_counts_mixed_supported_extensions(
+    tmp_path: Path,
+) -> None:
+    """Group discovered supported files by normalized extension."""
+
+    for filename in (
+        "coral.jpg",
+        "turtle.jpeg",
+        "reef.PNG",
+        "diver.webp",
+    ):
+        (tmp_path / filename).write_bytes(b"invalid image")
+
+    stats = analyze_dataset(tmp_path)
+
+    assert stats.extension_counts == {
+        "jpeg": 2,
+        "png": 1,
+        "webp": 1,
+    }
+    assert stats.invalid_images == 4
+    assert sum(stats.extension_counts.values()) == stats.total_images
+
+
+def test_analyze_normalizes_extension_case_and_aliases(
+    tmp_path: Path,
+) -> None:
+    """Normalize extension case and supported JPEG and TIFF aliases."""
+
+    for filename in (
+        "one.JPG",
+        "two.JpEg",
+        "three.png",
+        "four.PNG",
+        "five.tif",
+        "six.TIFF",
+    ):
+        (tmp_path / filename).write_bytes(b"invalid image")
+
+    stats = analyze_dataset(tmp_path)
+
+    assert stats.extension_counts == {
+        "jpeg": 2,
+        "png": 2,
+        "tiff": 2,
+    }
+    assert list(stats.extension_counts) == ["jpeg", "png", "tiff"]
+    assert sum(stats.extension_counts.values()) == stats.total_images

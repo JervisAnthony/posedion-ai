@@ -45,6 +45,15 @@ def analyze_dataset(
     for image_path in image_paths:
         stats.total_images += 1
 
+        extension = image_path.suffix.lower().removeprefix(".")
+        extension = {
+            "jpg": "jpeg",
+            "tif": "tiff",
+        }.get(extension, extension)
+        stats.extension_counts[extension] = (
+            stats.extension_counts.get(extension, 0) + 1
+        )
+
         validation_result = validate_image(image_path)
 
         if not validation_result.is_valid:
@@ -68,5 +77,7 @@ def analyze_dataset(
         stats.min_height = min(heights)
         stats.max_height = max(heights)
         stats.average_height = sum(heights) / len(heights)
+
+    stats.extension_counts = dict(sorted(stats.extension_counts.items()))
 
     return stats
