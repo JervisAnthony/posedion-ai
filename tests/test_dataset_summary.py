@@ -1,5 +1,7 @@
 """Tests for dataset summary formatting."""
 
+import csv
+import io
 import json
 import sys
 from pathlib import Path
@@ -117,6 +119,102 @@ def test_main_prints_json_summary(
 
     assert payload["total_images"] == 4
     assert payload["formatted_size"] == "2.00 KB"
+
+
+def test_main_prints_csv_summary(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Print CSV when selected through --format."""
+
+    monkeypatch.setattr(
+        dataset_summary,
+        "analyze_dataset",
+        lambda dataset_path: create_statistics(),
+    )
+
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "dataset-summary",
+            "data/sample_dataset",
+            "--format",
+            "csv",
+        ],
+    )
+
+    dataset_summary.main()
+
+    captured = capsys.readouterr()
+
+    rows = list(
+        csv.reader(
+            io.StringIO(captured.out)
+        )
+    )
+
+    assert rows[0] == [
+        "dataset_path",
+        "total_images",
+        "valid_images",
+        "invalid_images",
+        "min_width",
+        "max_width",
+        "average_width",
+        "min_height",
+        "max_height",
+        "average_height",
+        "total_size_bytes",
+    ]
+
+    assert rows[1] == [
+        str(Path("data/sample_dataset")),
+        "4",
+        "3",
+        "1",
+        "640",
+        "1280",
+        "906.67",
+        "480",
+        "720",
+        "600.00",
+        "2048",
+    ]
+
+
+def test_json_shortcut_takes_precedence_over_format(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Prefer the backward-compatible --json shortcut."""
+
+    monkeypatch.setattr(
+        dataset_summary,
+        "analyze_dataset",
+        lambda dataset_path: create_statistics(),
+    )
+
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "dataset-summary",
+            "data/sample_dataset",
+            "--json",
+            "--format",
+            "csv",
+        ],
+    )
+
+    dataset_summary.main()
+
+    captured = capsys.readouterr()
+    payload = json.loads(captured.out)
+
+    assert payload["total_images"] == 4
+    assert payload["formatted_size"] == "2.00 KB"
+
 
 def test_main_writes_summary_to_file(
     monkeypatch: pytest.MonkeyPatch,

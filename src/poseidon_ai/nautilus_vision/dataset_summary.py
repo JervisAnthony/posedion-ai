@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
+from typing import Callable
 
 from poseidon_ai.nautilus_vision.dataset_analyzer import analyze_dataset
 from poseidon_ai.nautilus_vision.dataset_csv import format_dataset_csv
@@ -13,6 +14,9 @@ from poseidon_ai.utils.filesize import format_file_size
 from poseidon_ai.nautilus_vision.dataset_markdown import (
     format_dataset_markdown,
 )
+
+DatasetFormatter = Callable[[Path, DatasetStatistics], str]
+
 
 def format_dataset_summary(
     dataset_path: Path,
@@ -77,6 +81,15 @@ def format_dataset_summary_json(
         indent=2,
     )
 
+
+FORMATTER_REGISTRY: dict[str, DatasetFormatter] = {
+    "text": format_dataset_summary,
+    "json": format_dataset_summary_json,
+    "csv": format_dataset_csv,
+    "markdown": format_dataset_markdown,
+}
+
+
 def main() -> None:
     """Run the dataset summary command."""
 
@@ -97,7 +110,7 @@ def main() -> None:
 
     parser.add_argument(
         "--format",
-        choices=("text", "json", "csv", "markdown"),
+        choices=tuple(FORMATTER_REGISTRY),
         default="text",
         help="Output format: text, JSON, CSV, or Markdown.",
     )
@@ -116,26 +129,11 @@ def main() -> None:
 
     output_format = "json" if args.json else args.format
 
-    if output_format == "json":
-        summary = format_dataset_summary_json(
-            dataset_path,
-            stats,
-        )
-    elif output_format == "csv":
-        summary = format_dataset_csv(
-            dataset_path,
-            stats,
-        )
-    elif output_format == "markdown":
-        summary = format_dataset_markdown(
-            dataset_path,
-            stats,
-        )
-    else:
-        summary = format_dataset_summary(
-            dataset_path,
-            stats,
-        )
+    formatter = FORMATTER_REGISTRY[output_format]
+    summary = formatter(
+        dataset_path,
+        stats,
+    )
 
     if args.output:
         args.output.write_text(
