@@ -24,6 +24,16 @@ def format_dataset_summary(
 ) -> str:
     """Format dataset statistics for terminal output."""
 
+    if stats.extension_counts:
+        image_formats = "\n".join(
+            f"{extension.upper():<18}: {count}"
+            for extension, count in sorted(
+                stats.extension_counts.items()
+            )
+        )
+    else:
+        image_formats = "No supported image files found."
+
     return (
         "Dataset Summary\n"
         "========================\n"
@@ -31,6 +41,10 @@ def format_dataset_summary(
         f"Total Images      : {stats.total_images}\n"
         f"Valid Images      : {stats.valid_images}\n"
         f"Invalid Images    : {stats.invalid_images}\n"
+        "\n"
+        "Image Formats\n"
+        "-------------\n"
+        f"{image_formats}\n"
         "\n"
         "Width\n"
         "-----\n"
@@ -60,6 +74,9 @@ def format_dataset_summary_json(
         "total_images": stats.total_images,
         "valid_images": stats.valid_images,
         "invalid_images": stats.invalid_images,
+        "extension_counts": dict(
+            sorted(stats.extension_counts.items())
+        ),
         "width": {
             "minimum": stats.min_width,
             "maximum": stats.max_width,

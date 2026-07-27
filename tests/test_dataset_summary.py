@@ -32,6 +32,11 @@ def create_statistics() -> DatasetStatistics:
         max_height=720,
         average_height=600.0,
         total_size_bytes=2048,
+        extension_counts={
+            "webp": 1,
+            "jpeg": 2,
+            "png": 1,
+        },
     )
 
 
@@ -53,10 +58,34 @@ def test_format_dataset_summary_json() -> None:
     assert payload["total_images"] == 4
     assert payload["valid_images"] == 3
     assert payload["invalid_images"] == 1
+    assert payload["extension_counts"] == {
+        "jpeg": 2,
+        "png": 1,
+        "webp": 1,
+    }
+    assert list(payload["extension_counts"]) == [
+        "jpeg",
+        "png",
+        "webp",
+    ]
     assert payload["width"]["minimum"] == 640
     assert payload["height"]["average"] == 600.0
     assert payload["total_size_bytes"] == 2048
     assert payload["formatted_size"] == "2.00 KB"
+
+
+def test_format_dataset_summary_json_with_no_images() -> None:
+    """Represent empty extension statistics as a JSON object."""
+
+    stats = create_statistics()
+    stats.extension_counts = {}
+
+    result = format_dataset_summary_json(
+        Path("data/sample_dataset"),
+        stats,
+    )
+
+    assert json.loads(result)["extension_counts"] == {}
 
 
 def test_main_prints_text_summary(
@@ -88,6 +117,39 @@ def test_main_prints_text_summary(
     assert "Total Images      : 4" in captured.out
     assert "Valid Images      : 3" in captured.out
     assert "Invalid Images    : 1" in captured.out
+    assert "Image Formats" in captured.out
+    assert "JPEG              : 2" in captured.out
+    assert "PNG               : 1" in captured.out
+    assert "WEBP              : 1" in captured.out
+    assert captured.out.index("JPEG") < captured.out.index("PNG")
+    assert captured.out.index("PNG") < captured.out.index("WEBP")
+
+
+def test_main_prints_empty_image_formats(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Explain when no supported image formats were found."""
+
+    stats = create_statistics()
+    stats.extension_counts = {}
+    monkeypatch.setattr(
+        dataset_summary,
+        "analyze_dataset",
+        lambda dataset_path: stats,
+    )
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["dataset-summary", "data/sample_dataset"],
+    )
+
+    dataset_summary.main()
+
+    assert (
+        "No supported image files found."
+        in capsys.readouterr().out
+    )
 
 
 def test_main_prints_json_summary(
@@ -159,6 +221,7 @@ def test_main_prints_csv_summary(
         "total_images",
         "valid_images",
         "invalid_images",
+        "extension_counts",
         "min_width",
         "max_width",
         "average_width",
@@ -173,6 +236,7 @@ def test_main_prints_csv_summary(
         "4",
         "3",
         "1",
+        '{"jpeg": 2, "png": 1, "webp": 1}',
         "640",
         "1280",
         "906.67",
@@ -214,6 +278,11 @@ def test_json_shortcut_takes_precedence_over_format(
 
     assert payload["total_images"] == 4
     assert payload["formatted_size"] == "2.00 KB"
+    assert payload["extension_counts"] == {
+        "jpeg": 2,
+        "png": 1,
+        "webp": 1,
+    }
 
 
 def test_main_writes_summary_to_file(
@@ -283,5 +352,6 @@ def test_main_prints_markdown_summary(
     assert "# Dataset Summary" in captured.out
     assert "## Overview" in captured.out
     assert "| Total Images | 4 |" in captured.out
+    assert "| JPEG | 2 |" in captured.out
     assert "| Average | 906.67 |" in captured.out
     assert "| Size | 2.00 KB |" in captured.out
