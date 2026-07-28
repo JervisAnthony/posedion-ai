@@ -38,6 +38,7 @@ work.
   then exposes them in each dataset report.
 - Renders dataset reports as text, JSON, CSV, or Markdown.
 - Writes any selected report to a UTF-8 file.
+- Reports common dataset and output-path failures without tracebacks.
 - Provides centralized console and rotating-file logging utilities.
 - Uses `pyproject.toml` for package metadata, dependencies, Python support,
   and the installed `poseidon-inspect` command.
@@ -225,7 +226,7 @@ python -m pytest tests/test_dataset_summary.py -v
 GitHub Actions runs the complete test suite on Ubuntu and Windows with
 Python 3.13.
 
-The suite contained 59 passing tests when this documentation was verified.
+The suite contained 69 passing tests when this documentation was verified.
 
 ## Project structure
 
