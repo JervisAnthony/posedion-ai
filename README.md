@@ -20,7 +20,7 @@ work.
 | Nautilus Vision image utilities | Implemented |
 | Nautilus Vision dataset analysis and reporting | Implemented |
 | Invalid-image diagnostic reporting | Implemented in all dataset reports |
-| Dataset-summary installed command | Planned; use the Python module today |
+| Dataset-summary installed command | Implemented |
 | Model training and inference | Planned |
 | Other Poseidon AI components | Planned or exploratory |
 
@@ -41,7 +41,8 @@ work.
 - Reports common dataset and output-path failures without tracebacks.
 - Provides centralized console and rotating-file logging utilities.
 - Uses `pyproject.toml` for package metadata, dependencies, Python support,
-  and the installed `poseidon-inspect` command.
+  and the installed `poseidon-inspect` and `poseidon-dataset-summary`
+  commands.
 
 ## Installation
 
@@ -85,6 +86,12 @@ poseidon-inspect path/to/image.jpg
 Summarize the supported images directly inside a directory:
 
 ```bash
+poseidon-dataset-summary path/to/dataset
+```
+
+The equivalent module invocation remains available:
+
+```bash
 python -m poseidon_ai.nautilus_vision.dataset_summary path/to/dataset
 ```
 
@@ -95,22 +102,22 @@ covered in the [dataset-summary CLI guide](docs/dataset-summary-cli.md).
 
 ```bash
 # Default text report
-python -m poseidon_ai.nautilus_vision.dataset_summary path/to/dataset
+poseidon-dataset-summary path/to/dataset
 
 # JSON using the format selector
-python -m poseidon_ai.nautilus_vision.dataset_summary path/to/dataset --format json
+poseidon-dataset-summary path/to/dataset --format json
 
 # Backward-compatible JSON shortcut
-python -m poseidon_ai.nautilus_vision.dataset_summary path/to/dataset --json
+poseidon-dataset-summary path/to/dataset --json
 
 # CSV
-python -m poseidon_ai.nautilus_vision.dataset_summary path/to/dataset --format csv
+poseidon-dataset-summary path/to/dataset --format csv
 
 # Markdown
-python -m poseidon_ai.nautilus_vision.dataset_summary path/to/dataset --format markdown
+poseidon-dataset-summary path/to/dataset --format markdown
 
 # Write the selected report instead of printing it
-python -m poseidon_ai.nautilus_vision.dataset_summary path/to/dataset --format json --output report.json
+poseidon-dataset-summary path/to/dataset --format json --output report.json
 ```
 
 ## Output examples
@@ -226,7 +233,7 @@ python -m pytest tests/test_dataset_summary.py -v
 GitHub Actions runs the complete test suite on Ubuntu and Windows with
 Python 3.13.
 
-The suite contained 69 passing tests when this documentation was verified.
+The suite contained 71 passing tests when this documentation was verified.
 
 ## Project structure
 

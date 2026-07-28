@@ -6,13 +6,20 @@ inside one directory and renders one aggregate report.
 ## Syntax
 
 ```text
-python -m poseidon_ai.nautilus_vision.dataset_summary DATASET_PATH
+poseidon-dataset-summary DATASET_PATH
     [--json]
     [--format {text,json,csv,markdown}]
     [--output OUTPUT]
 ```
 
 `DATASET_PATH` is the required directory to inspect.
+
+The installed command and this equivalent module invocation use the same
+`main()` function:
+
+```bash
+python -m poseidon_ai.nautilus_vision.dataset_summary DATASET_PATH
+```
 
 ## Options
 
@@ -33,26 +40,26 @@ options.
 ### Default text
 
 ```bash
-python -m poseidon_ai.nautilus_vision.dataset_summary data/sample_dataset
+poseidon-dataset-summary data/sample_dataset
 ```
 
 ### JSON
 
 ```bash
-python -m poseidon_ai.nautilus_vision.dataset_summary data/sample_dataset --format json
-python -m poseidon_ai.nautilus_vision.dataset_summary data/sample_dataset --json
+poseidon-dataset-summary data/sample_dataset --format json
+poseidon-dataset-summary data/sample_dataset --json
 ```
 
 ### CSV
 
 ```bash
-python -m poseidon_ai.nautilus_vision.dataset_summary data/sample_dataset --format csv
+poseidon-dataset-summary data/sample_dataset --format csv
 ```
 
 ### Markdown
 
 ```bash
-python -m poseidon_ai.nautilus_vision.dataset_summary data/sample_dataset --format markdown
+poseidon-dataset-summary data/sample_dataset --format markdown
 ```
 
 ## Output files
@@ -63,13 +70,13 @@ exist.
 Windows PowerShell:
 
 ```powershell
-python -m poseidon_ai.nautilus_vision.dataset_summary .\data\sample_dataset --format json --output .\dataset-report.json
+poseidon-dataset-summary .\data\sample_dataset --format json --output .\dataset-report.json
 ```
 
 macOS/Linux:
 
 ```bash
-python -m poseidon_ai.nautilus_vision.dataset_summary ./data/sample_dataset --format markdown --output ./dataset-report.md
+poseidon-dataset-summary ./data/sample_dataset --format markdown --output ./dataset-report.md
 ```
 
 When `--output` is present, the report is written instead of printed.
@@ -199,10 +206,19 @@ than becoming CLI errors.
 
 - Discovery is non-recursive through this CLI.
 - Validation uses the current default minimum of 32×32 pixels.
-- The CLI has no installed console command; invoke the module as shown above.
 - The parent of an `--output` path is not created automatically.
 
 ## Troubleshooting
+
+### `poseidon-dataset-summary` command not found
+
+Activate the intended virtual environment and install the repository:
+
+```bash
+python -m pip install -e ".[dev]"
+```
+
+Confirm the same virtual environment remains active when running the command.
 
 ### `No module named poseidon_ai`
 
