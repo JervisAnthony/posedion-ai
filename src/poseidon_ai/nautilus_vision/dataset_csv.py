@@ -3,30 +3,12 @@ import io
 import json
 from pathlib import Path
 
+from poseidon_ai.nautilus_vision.dataset_serialization import (
+    serialize_invalid_image_diagnostics,
+)
 from poseidon_ai.nautilus_vision.dataset_statistics import (
     DatasetStatistics,
-    InvalidImageDiagnostic,
 )
-
-
-def _serialize_invalid_image_diagnostics(
-    diagnostics: list[InvalidImageDiagnostic],
-) -> list[dict[str, object]]:
-    """Return diagnostics in a portable, deterministic structure."""
-
-    return [
-        {
-            "image_path": diagnostic.image_path.as_posix(),
-            "errors": list(diagnostic.errors),
-        }
-        for diagnostic in sorted(
-            diagnostics,
-            key=lambda diagnostic: (
-                diagnostic.image_path.as_posix().casefold(),
-                diagnostic.image_path.as_posix(),
-            ),
-        )
-    ]
 
 
 def format_dataset_csv(
@@ -67,7 +49,7 @@ def format_dataset_csv(
                 dict(sorted(stats.extension_counts.items()))
             ),
             json.dumps(
-                _serialize_invalid_image_diagnostics(
+                serialize_invalid_image_diagnostics(
                     stats.invalid_image_diagnostics
                 )
             ),

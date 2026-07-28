@@ -8,15 +8,15 @@ from pathlib import Path
 from typing import Callable
 
 from poseidon_ai.nautilus_vision.dataset_analyzer import analyze_dataset
-from poseidon_ai.nautilus_vision.dataset_csv import (
-    _serialize_invalid_image_diagnostics,
-    format_dataset_csv,
-)
-from poseidon_ai.nautilus_vision.dataset_statistics import DatasetStatistics
-from poseidon_ai.utils.filesize import format_file_size
+from poseidon_ai.nautilus_vision.dataset_csv import format_dataset_csv
 from poseidon_ai.nautilus_vision.dataset_markdown import (
     format_dataset_markdown,
 )
+from poseidon_ai.nautilus_vision.dataset_serialization import (
+    serialize_invalid_image_diagnostics,
+)
+from poseidon_ai.nautilus_vision.dataset_statistics import DatasetStatistics
+from poseidon_ai.utils.filesize import format_file_size
 
 DatasetFormatter = Callable[[Path, DatasetStatistics], str]
 
@@ -92,6 +92,7 @@ def format_dataset_summary(
         f"Dataset Size      : {format_file_size(stats.total_size_bytes)}\n"
     )
 
+
 def format_dataset_summary_json(
     dataset_path: Path,
     stats: DatasetStatistics,
@@ -107,7 +108,7 @@ def format_dataset_summary_json(
             sorted(stats.extension_counts.items())
         ),
         "invalid_image_diagnostics": (
-            _serialize_invalid_image_diagnostics(
+            serialize_invalid_image_diagnostics(
                 stats.invalid_image_diagnostics
             )
         ),
@@ -193,6 +194,7 @@ def main() -> None:
         )
     else:
         print(summary)
+
 
 if __name__ == "__main__":
     main()

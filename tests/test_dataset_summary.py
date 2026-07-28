@@ -476,8 +476,8 @@ def test_main_writes_summary_to_file(
     assert "Total Images      : 4" in report
 
 def test_main_prints_markdown_summary(
-    monkeypatch,
-    capsys,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
 ) -> None:
     """Print the dataset summary as Markdown."""
 
