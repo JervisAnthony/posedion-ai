@@ -162,6 +162,12 @@ def main() -> int:
     )
 
     parser.add_argument(
+        "--recursive",
+        action="store_true",
+        help="Search for images in nested directories.",
+    )
+
+    parser.add_argument(
         "--json",
         action="store_true",
         help="Output dataset statistics as JSON.",
@@ -185,7 +191,10 @@ def main() -> int:
     dataset_path = Path(args.dataset_path)
 
     try:
-        stats = analyze_dataset(dataset_path)
+        stats = analyze_dataset(
+            dataset_path,
+            recursive=args.recursive,
+        )
     except FileNotFoundError:
         print(
             f"Error: dataset path does not exist: {dataset_path}",

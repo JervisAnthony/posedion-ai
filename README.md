@@ -95,14 +95,18 @@ The equivalent module invocation remains available:
 python -m poseidon_ai.nautilus_vision.dataset_summary path/to/dataset
 ```
 
-The dataset-summary CLI is not recursive. Its current syntax and behavior are
-covered in the [dataset-summary CLI guide](docs/dataset-summary-cli.md).
+Scanning is top-level only by default. Use `--recursive` to include supported
+images in nested directories. Full syntax and behavior are covered in the
+[dataset-summary CLI guide](docs/dataset-summary-cli.md).
 
 ## Dataset-summary CLI
 
 ```bash
 # Default text report
 poseidon-dataset-summary path/to/dataset
+
+# Include images in nested directories
+poseidon-dataset-summary path/to/dataset --recursive
 
 # JSON using the format selector
 poseidon-dataset-summary path/to/dataset --format json
@@ -233,7 +237,7 @@ python -m pytest tests/test_dataset_summary.py -v
 GitHub Actions runs the complete test suite on Ubuntu and Windows with
 Python 3.13.
 
-The suite contained 71 passing tests when this documentation was verified.
+The suite contained 79 passing tests when this documentation was verified.
 
 ## Project structure
 
