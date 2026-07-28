@@ -177,16 +177,23 @@ reports are portable across operating systems.
 
 ## Exit behavior
 
-- Normal terminal output and successful file writes return status 0.
+- Successful terminal output and file writes return status 0.
 - `--help` returns status 0.
+- Expected dataset and output filesystem failures return status 1. These
+  failures are written to standard error as concise `Error:` messages without
+  a traceback; standard output remains empty.
 - Argparse rejects missing arguments or unsupported `--format` values and
   returns status 2.
-- Missing directories, file paths used as directories, and file-write errors
-  currently propagate as uncaught Python exceptions and normally return a
-  nonzero status with a traceback.
 
-No custom quiet mode, warning stream, or structured CLI error response is
-currently implemented.
+Status 1 covers missing dataset paths, files supplied as dataset paths,
+dataset directories that cannot be read, missing output directories,
+directories supplied as output paths, and output permission or write errors.
+The CLI does not create missing output directories.
+
+A valid empty dataset remains successful and retains the existing empty-state
+report. Corrupt or undersized supported images also remain successful
+analysis results: they contribute to invalid counts and diagnostics rather
+than becoming CLI errors.
 
 ## Current limitations
 
@@ -207,8 +214,9 @@ python -m pip install -e ".[dev]"
 
 ### Dataset path errors
 
-Confirm the argument exists and is a directory. A single image path is not a
-valid dataset path.
+The CLI reports a missing path or a file supplied as the dataset on standard
+error and returns status 1. Confirm the argument exists, is a directory, and
+can be read by the current process.
 
 ### No images are reported
 
@@ -224,5 +232,7 @@ failures.
 
 ### Output-file errors
 
-Create the parent directory before using `--output`, and confirm the process
-can write to that location.
+The CLI reports missing output directories, directory output paths, and
+permission or other expected write failures on standard error and returns
+status 1. Create the parent directory before using `--output`, supply a file
+path, and confirm the process can write to that location.

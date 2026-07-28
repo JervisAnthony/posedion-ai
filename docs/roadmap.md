@@ -19,6 +19,7 @@ exploratory entries are not delivery commitments and have no assigned dates.
 - Text, JSON, CSV, and Markdown dataset reports
 - UTF-8 report file output
 - Formatter registry and legacy JSON shortcut
+- Concise dataset-summary filesystem errors with status 1
 - Single-image `poseidon-inspect` command
 - Console and rotating-file logging utilities
 - Unit and CLI-level test coverage
@@ -32,7 +33,6 @@ exploratory entries are not delivery commitments and have no assigned dates.
 
 ### Planned
 
-- Improved dataset-summary error handling
 - Installed dataset-summary command
 - Recursive scanning through the dataset-summary CLI
 - Configurable validation thresholds

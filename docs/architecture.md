@@ -122,7 +122,11 @@ contract. The registry is also the source for argparse's `--format` choices.
 `python -m poseidon_ai.nautilus_vision.dataset_summary` invokes the dataset
 summary CLI. It parses the dataset path, output format, legacy `--json`
 shortcut, and optional output path. It analyzes once, selects a formatter,
-then prints or writes the result.
+then prints or writes the result. Loaders and analyzers retain normal Python
+exception semantics for library callers. At the CLI boundary, expected
+dataset and output filesystem failures are translated into concise standard
+error messages and status 1. Unexpected programming failures are not broadly
+swallowed.
 
 The installed `poseidon-inspect` command is separate and inspects metadata for
 one image. No installed dataset-summary command is currently declared.
@@ -174,8 +178,6 @@ retain those lowercase keys. Text and Markdown uppercase them for display.
 - The dataset-summary CLI scans only the supplied directory; it exposes no
   recursive flag.
 - Validation thresholds are fixed at analyzer call sites.
-- CLI errors from missing paths, wrong path types, decoding, or output writes
-  are not converted into a dedicated user-facing error protocol.
 - Dataset size excludes invalid supported files.
 - There is no installed dataset-summary console command.
 - There is no model-training, inference, video, or live-camera pipeline.
@@ -184,7 +186,6 @@ retain those lowercase keys. Text and Markdown uppercase them for display.
 ## Planned architectural direction
 
 Planned work is tracked in the [roadmap](roadmap.md). Near-term directions
-include continuous integration, improved CLI errors, recursive CLI scanning,
-configurable thresholds, richer dataset statistics, and manifest export.
-Training and inference remain future capabilities rather than part of the
-current architecture.
+include recursive CLI scanning, configurable thresholds, richer dataset
+statistics, and manifest export. Training and inference remain future
+capabilities rather than part of the current architecture.

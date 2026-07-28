@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from pathlib import Path
 from typing import Callable
 
@@ -142,7 +143,13 @@ FORMATTER_REGISTRY: dict[str, DatasetFormatter] = {
 }
 
 
-def main() -> None:
+def _os_error_message(error: OSError) -> str:
+    """Return the useful operating-system portion of an error."""
+
+    return error.strerror or str(error)
+
+
+def main() -> int:
     """Run the dataset summary command."""
 
     parser = argparse.ArgumentParser(
@@ -177,7 +184,27 @@ def main() -> None:
 
     dataset_path = Path(args.dataset_path)
 
-    stats = analyze_dataset(dataset_path)
+    try:
+        stats = analyze_dataset(dataset_path)
+    except FileNotFoundError:
+        print(
+            f"Error: dataset path does not exist: {dataset_path}",
+            file=sys.stderr,
+        )
+        return 1
+    except NotADirectoryError:
+        print(
+            f"Error: dataset path is not a directory: {dataset_path}",
+            file=sys.stderr,
+        )
+        return 1
+    except OSError as error:
+        print(
+            "Error: could not read dataset path "
+            f"{dataset_path}: {_os_error_message(error)}",
+            file=sys.stderr,
+        )
+        return 1
 
     output_format = "json" if args.json else args.format
 
@@ -188,13 +215,54 @@ def main() -> None:
     )
 
     if args.output:
-        args.output.write_text(
-            summary,
-            encoding="utf-8",
-        )
+        output_path = args.output
+        output_directory = output_path.parent
+
+        try:
+            if output_path.is_dir():
+                print(
+                    f"Error: output path is not a file: {output_path}",
+                    file=sys.stderr,
+                )
+                return 1
+
+            if not output_directory.exists():
+                print(
+                    "Error: output directory does not exist: "
+                    f"{output_directory}",
+                    file=sys.stderr,
+                )
+                return 1
+
+            output_path.write_text(
+                summary,
+                encoding="utf-8",
+            )
+        except IsADirectoryError:
+            print(
+                f"Error: output path is not a file: {output_path}",
+                file=sys.stderr,
+            )
+            return 1
+        except FileNotFoundError:
+            print(
+                "Error: output directory does not exist: "
+                f"{output_directory}",
+                file=sys.stderr,
+            )
+            return 1
+        except OSError as error:
+            print(
+                "Error: could not write output file "
+                f"{output_path}: {_os_error_message(error)}",
+                file=sys.stderr,
+            )
+            return 1
     else:
         print(summary)
 
+    return 0
+
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

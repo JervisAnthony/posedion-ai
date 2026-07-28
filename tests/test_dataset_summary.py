@@ -180,7 +180,7 @@ def test_main_prints_text_summary(
         ],
     )
 
-    dataset_summary.main()
+    assert dataset_summary.main() == 0
 
     captured = capsys.readouterr()
 
@@ -255,7 +255,7 @@ def test_main_prints_empty_image_formats(
         ["dataset-summary", "data/sample_dataset"],
     )
 
-    dataset_summary.main()
+    assert dataset_summary.main() == 0
 
     assert (
         "No supported image files found."
@@ -285,7 +285,7 @@ def test_main_prints_json_summary(
         ],
     )
 
-    dataset_summary.main()
+    assert dataset_summary.main() == 0
 
     captured = capsys.readouterr()
     payload = json.loads(captured.out)
@@ -317,7 +317,7 @@ def test_main_reports_analyzer_diagnostics(
         ],
     )
 
-    dataset_summary.main()
+    assert dataset_summary.main() == 0
 
     payload = json.loads(capsys.readouterr().out)
     diagnostics = payload["invalid_image_diagnostics"]
@@ -353,7 +353,7 @@ def test_main_prints_csv_summary(
         ],
     )
 
-    dataset_summary.main()
+    assert dataset_summary.main() == 0
 
     captured = capsys.readouterr()
 
@@ -423,7 +423,7 @@ def test_json_shortcut_takes_precedence_over_format(
         ],
     )
 
-    dataset_summary.main()
+    assert dataset_summary.main() == 0
 
     captured = capsys.readouterr()
     payload = json.loads(captured.out)
@@ -466,7 +466,7 @@ def test_main_writes_summary_to_file(
         ],
     )
 
-    dataset_summary.main()
+    assert dataset_summary.main() == 0
 
     captured = capsys.readouterr()
     report = output_path.read_text(encoding="utf-8")
@@ -500,7 +500,7 @@ def test_main_prints_markdown_summary(
         ],
     )
 
-    dataset_summary.main()
+    assert dataset_summary.main() == 0
 
     captured = capsys.readouterr()
 
@@ -512,3 +512,280 @@ def test_main_prints_markdown_summary(
     assert "### `data/a-corrupt.jpg`" in captured.out
     assert "| Average | 906.67 |" in captured.out
     assert "| Size | 2.00 KB |" in captured.out
+
+
+def test_main_reports_missing_dataset_path(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Report a missing dataset path without a traceback."""
+
+    dataset_path = tmp_path / "missing"
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["dataset-summary", str(dataset_path)],
+    )
+
+    assert dataset_summary.main() == 1
+
+    captured = capsys.readouterr()
+
+    assert captured.out == ""
+    assert captured.err == (
+        f"Error: dataset path does not exist: {dataset_path}\n"
+    )
+    assert "Traceback" not in captured.err
+
+
+def test_main_reports_dataset_path_that_is_a_file(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Report when the dataset path is not a directory."""
+
+    dataset_path = tmp_path / "image.jpg"
+    dataset_path.write_bytes(b"not an image")
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["dataset-summary", str(dataset_path)],
+    )
+
+    assert dataset_summary.main() == 1
+
+    captured = capsys.readouterr()
+
+    assert captured.out == ""
+    assert captured.err == (
+        f"Error: dataset path is not a directory: {dataset_path}\n"
+    )
+    assert "Traceback" not in captured.err
+
+
+def test_main_reports_missing_output_directory(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Report a missing output parent without creating it."""
+
+    output_directory = tmp_path / "reports"
+    output_path = output_directory / "summary.txt"
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "dataset-summary",
+            str(tmp_path),
+            "--output",
+            str(output_path),
+        ],
+    )
+
+    assert dataset_summary.main() == 1
+
+    captured = capsys.readouterr()
+
+    assert captured.out == ""
+    assert captured.err == (
+        "Error: output directory does not exist: "
+        f"{output_directory}\n"
+    )
+    assert "Traceback" not in captured.err
+    assert not output_directory.exists()
+    assert not output_path.exists()
+
+
+def test_main_reports_output_path_that_is_a_directory(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Report when the output path is an existing directory."""
+
+    dataset_path = tmp_path / "dataset"
+    dataset_path.mkdir()
+    output_path = tmp_path / "reports"
+    output_path.mkdir()
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "dataset-summary",
+            str(dataset_path),
+            "--output",
+            str(output_path),
+        ],
+    )
+
+    assert dataset_summary.main() == 1
+
+    captured = capsys.readouterr()
+
+    assert captured.out == ""
+    assert captured.err == (
+        f"Error: output path is not a file: {output_path}\n"
+    )
+    assert "Traceback" not in captured.err
+
+
+def test_main_reports_output_permission_failure(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Report an expected output permission error."""
+
+    output_path = tmp_path / "summary.txt"
+
+    def deny_write(
+        path: Path,
+        data: str,
+        *,
+        encoding: str | None = None,
+        errors: str | None = None,
+        newline: str | None = None,
+    ) -> int:
+        raise PermissionError("permission denied")
+
+    monkeypatch.setattr(Path, "write_text", deny_write)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "dataset-summary",
+            str(tmp_path),
+            "--output",
+            str(output_path),
+        ],
+    )
+
+    assert dataset_summary.main() == 1
+
+    captured = capsys.readouterr()
+
+    assert captured.out == ""
+    assert captured.err == (
+        "Error: could not write output file "
+        f"{output_path}: permission denied\n"
+    )
+    assert "Traceback" not in captured.err
+    assert not output_path.exists()
+
+
+def test_main_reports_dataset_filesystem_failure(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Report an expected dataset filesystem error."""
+
+    def deny_dataset_access(
+        dataset_path: Path,
+    ) -> DatasetStatistics:
+        raise PermissionError("permission denied")
+
+    monkeypatch.setattr(
+        dataset_summary,
+        "analyze_dataset",
+        deny_dataset_access,
+    )
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["dataset-summary", str(tmp_path)],
+    )
+
+    assert dataset_summary.main() == 1
+
+    captured = capsys.readouterr()
+
+    assert captured.out == ""
+    assert captured.err == (
+        "Error: could not read dataset path "
+        f"{tmp_path}: permission denied\n"
+    )
+    assert "Traceback" not in captured.err
+
+
+def test_main_empty_dataset_remains_successful(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Treat a valid empty dataset as a successful report."""
+
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["dataset-summary", str(tmp_path)],
+    )
+
+    assert dataset_summary.main() == 0
+
+    captured = capsys.readouterr()
+
+    assert "No supported image files found." in captured.out
+    assert "No invalid images found." in captured.out
+    assert captured.err == ""
+
+
+@pytest.mark.parametrize(
+    "arguments",
+    [
+        ["dataset-summary"],
+        [
+            "dataset-summary",
+            "data/sample_dataset",
+            "--format",
+            "xml",
+        ],
+    ],
+)
+def test_main_preserves_argparse_usage_errors(
+    arguments: list[str],
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Preserve argparse status 2 for command-line usage errors."""
+
+    monkeypatch.setattr(sys, "argv", arguments)
+
+    with pytest.raises(SystemExit) as error:
+        dataset_summary.main()
+
+    captured = capsys.readouterr()
+
+    assert error.value.code == 2
+    assert captured.out == ""
+    assert "usage:" in captured.err
+    assert "Traceback" not in captured.err
+
+
+def test_main_does_not_hide_unexpected_errors(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """Allow unexpected programming errors to surface."""
+
+    def raise_unexpected_error(
+        dataset_path: Path,
+    ) -> DatasetStatistics:
+        raise RuntimeError("unexpected")
+
+    monkeypatch.setattr(
+        dataset_summary,
+        "analyze_dataset",
+        raise_unexpected_error,
+    )
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["dataset-summary", str(tmp_path)],
+    )
+
+    with pytest.raises(RuntimeError, match="unexpected"):
+        dataset_summary.main()
