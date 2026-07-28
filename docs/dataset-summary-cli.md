@@ -1,12 +1,14 @@
 # Dataset-summary CLI
 
-The Nautilus Vision dataset-summary CLI analyzes supported images directly
-inside one directory and renders one aggregate report.
+The Nautilus Vision dataset-summary CLI analyzes supported images in a
+dataset directory and renders one aggregate report. Scanning is top-level
+only by default and can optionally include nested directories.
 
 ## Syntax
 
 ```text
 poseidon-dataset-summary DATASET_PATH
+    [--recursive]
     [--json]
     [--format {text,json,csv,markdown}]
     [--output OUTPUT]
@@ -25,6 +27,7 @@ python -m poseidon_ai.nautilus_vision.dataset_summary DATASET_PATH
 
 | Option | Meaning |
 |--------|---------|
+| `--recursive` | Search for images in nested directories. |
 | `--format {text,json,csv,markdown}` | Select the report format; default: `text`. |
 | `--json` | Backward-compatible shortcut that selects JSON. |
 | `--output PATH` | Write UTF-8 output to a file instead of standard output. |
@@ -32,8 +35,7 @@ python -m poseidon_ai.nautilus_vision.dataset_summary DATASET_PATH
 
 If `--json` and `--format` are both supplied, `--json` takes precedence.
 
-The CLI does not currently expose recursive scanning or validation-threshold
-options.
+The CLI does not currently expose validation-threshold options.
 
 ## Examples
 
@@ -43,11 +45,23 @@ options.
 poseidon-dataset-summary data/sample_dataset
 ```
 
+### Recursive text
+
+```bash
+poseidon-dataset-summary data/sample_dataset --recursive
+```
+
 ### JSON
 
 ```bash
 poseidon-dataset-summary data/sample_dataset --format json
 poseidon-dataset-summary data/sample_dataset --json
+```
+
+Recursive JSON uses the same report schema:
+
+```bash
+poseidon-dataset-summary data/sample_dataset --recursive --format json
 ```
 
 ### CSV
@@ -80,6 +94,29 @@ poseidon-dataset-summary ./data/sample_dataset --format markdown --output ./data
 ```
 
 When `--output` is present, the report is written instead of printed.
+It can be combined with recursive scanning:
+
+```bash
+poseidon-dataset-summary data/sample_dataset --recursive --format json --output dataset-report.json
+```
+
+## Recursive scanning
+
+Without `--recursive`, only supported images directly inside `DATASET_PATH`
+are analyzed. With `--recursive`, supported images in that directory and all
+nested directories contribute to the same report.
+
+Nested valid images contribute to counts, dimensions, format statistics, and
+dataset size. Nested corrupt or undersized supported images contribute to
+invalid counts, format statistics, and invalid-image diagnostics, including
+their portable paths and validation errors. Unsupported nested files remain
+ignored, and empty nested directories are not errors.
+
+The equivalent module invocation accepts the same option:
+
+```bash
+python -m poseidon_ai.nautilus_vision.dataset_summary data/sample_dataset --recursive
+```
 
 ## Text output
 
@@ -204,7 +241,6 @@ than becoming CLI errors.
 
 ## Current limitations
 
-- Discovery is non-recursive through this CLI.
 - Validation uses the current default minimum of 32×32 pixels.
 - The parent of an `--output` path is not created automatically.
 
@@ -236,8 +272,9 @@ can be read by the current process.
 
 ### No images are reported
 
-The CLI scans only the top level. Confirm files use a supported suffix:
-`.bmp`, `.jpg`, `.jpeg`, `.png`, `.tif`, `.tiff`, or `.webp`.
+By default, the CLI scans only the top level. If supported images exist only
+inside nested directories, add `--recursive`. Confirm files use a supported
+suffix: `.bmp`, `.jpg`, `.jpeg`, `.png`, `.tif`, `.tiff`, or `.webp`.
 
 ### Images are counted as invalid
 

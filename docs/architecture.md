@@ -38,9 +38,9 @@ result for standard output or a file.
 `nautilus_vision/dataset_loader.py` checks that the dataset path exists and is
 a directory. It discovers regular files with supported suffixes and returns
 them in deterministic, case-insensitive relative-path order. The loader API
-supports recursive discovery and optional validation, although the
-dataset-summary CLI currently uses the analyzer defaults: non-recursive
-discovery with analyzer-managed validation.
+supports both recursive and non-recursive discovery plus optional validation.
+The dataset-summary CLI keeps non-recursive discovery as its default and
+exposes recursive discovery through `--recursive`.
 
 ### Image validator
 
@@ -127,11 +127,13 @@ argument parsing, formatting, operational error handling, and exit-code
 behavior.
 
 The CLI parses the dataset path, output format, legacy `--json` shortcut, and
-optional output path. It analyzes once, selects a formatter, then prints or
-writes the result. Loaders and analyzers retain normal Python exception
-semantics for library callers. At the CLI boundary, expected dataset and
-output filesystem failures are translated into concise standard error
-messages and status 1. Unexpected programming failures are not broadly
+optional output path. Its `--recursive` boolean is passed directly to the
+existing analyzer, which delegates discovery to the loader; the CLI contains
+no separate traversal implementation. It analyzes once, selects a formatter,
+then prints or writes the result. Loaders and analyzers retain normal Python
+exception semantics for library callers. At the CLI boundary, expected
+dataset and output filesystem failures are translated into concise standard
+error messages and status 1. Unexpected programming failures are not broadly
 swallowed.
 
 The installed `poseidon-inspect` command is separate and inspects metadata for
@@ -181,8 +183,6 @@ retain those lowercase keys. Text and Markdown uppercase them for display.
 
 ## Current limitations
 
-- The dataset-summary CLI scans only the supplied directory; it exposes no
-  recursive flag.
 - Validation thresholds are fixed at analyzer call sites.
 - Dataset size excludes invalid supported files.
 - There is no model-training, inference, video, or live-camera pipeline.
@@ -191,6 +191,6 @@ retain those lowercase keys. Text and Markdown uppercase them for display.
 ## Planned architectural direction
 
 Planned work is tracked in the [roadmap](roadmap.md). Near-term directions
-include recursive CLI scanning, configurable thresholds, richer dataset
-statistics, and manifest export. Training and inference remain future
-capabilities rather than part of the current architecture.
+include configurable thresholds, richer dataset statistics, and manifest
+export. Training and inference remain future capabilities rather than part
+of the current architecture.

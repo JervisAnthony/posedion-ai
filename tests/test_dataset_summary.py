@@ -6,6 +6,8 @@ import json
 import sys
 from pathlib import Path
 
+import cv2
+import numpy as np
 import pytest
 
 import poseidon_ai.nautilus_vision.dataset_summary as dataset_summary
@@ -17,6 +19,18 @@ from poseidon_ai.nautilus_vision.dataset_summary import (
     format_dataset_summary,
     format_dataset_summary_json,
 )
+
+
+def create_test_image(
+    path: Path,
+    *,
+    width: int = 100,
+    height: int = 100,
+) -> None:
+    """Create a valid image for CLI integration tests."""
+
+    image = np.zeros((height, width, 3), dtype=np.uint8)
+    assert cv2.imwrite(str(path), image) is True
 
 
 def create_statistics() -> DatasetStatistics:
@@ -168,7 +182,7 @@ def test_main_prints_text_summary(
     monkeypatch.setattr(
         dataset_summary,
         "analyze_dataset",
-        lambda dataset_path: create_statistics(),
+        lambda dataset_path, *, recursive=False: create_statistics(),
     )
 
     monkeypatch.setattr(
@@ -247,7 +261,7 @@ def test_main_prints_empty_image_formats(
     monkeypatch.setattr(
         dataset_summary,
         "analyze_dataset",
-        lambda dataset_path: stats,
+        lambda dataset_path, *, recursive=False: stats,
     )
     monkeypatch.setattr(
         sys,
@@ -272,7 +286,7 @@ def test_main_prints_json_summary(
     monkeypatch.setattr(
         dataset_summary,
         "analyze_dataset",
-        lambda dataset_path: create_statistics(),
+        lambda dataset_path, *, recursive=False: create_statistics(),
     )
 
     monkeypatch.setattr(
@@ -339,7 +353,7 @@ def test_main_prints_csv_summary(
     monkeypatch.setattr(
         dataset_summary,
         "analyze_dataset",
-        lambda dataset_path: create_statistics(),
+        lambda dataset_path, *, recursive=False: create_statistics(),
     )
 
     monkeypatch.setattr(
@@ -408,7 +422,7 @@ def test_json_shortcut_takes_precedence_over_format(
     monkeypatch.setattr(
         dataset_summary,
         "analyze_dataset",
-        lambda dataset_path: create_statistics(),
+        lambda dataset_path, *, recursive=False: create_statistics(),
     )
 
     monkeypatch.setattr(
@@ -450,7 +464,7 @@ def test_main_writes_summary_to_file(
     monkeypatch.setattr(
         dataset_summary,
         "analyze_dataset",
-        lambda dataset_path: create_statistics(),
+        lambda dataset_path, *, recursive=False: create_statistics(),
     )
 
     output_path = tmp_path / "report.txt"
@@ -486,7 +500,7 @@ def test_main_prints_markdown_summary(
     monkeypatch.setattr(
         dataset_summary,
         "analyze_dataset",
-        lambda dataset_path: stats,
+        lambda dataset_path, *, recursive=False: stats,
     )
 
     monkeypatch.setattr(
@@ -685,6 +699,8 @@ def test_main_reports_dataset_filesystem_failure(
 
     def deny_dataset_access(
         dataset_path: Path,
+        *,
+        recursive: bool = False,
     ) -> DatasetStatistics:
         raise PermissionError("permission denied")
 
@@ -773,6 +789,8 @@ def test_main_does_not_hide_unexpected_errors(
 
     def raise_unexpected_error(
         dataset_path: Path,
+        *,
+        recursive: bool = False,
     ) -> DatasetStatistics:
         raise RuntimeError("unexpected")
 
@@ -789,3 +807,278 @@ def test_main_does_not_hide_unexpected_errors(
 
     with pytest.raises(RuntimeError, match="unexpected"):
         dataset_summary.main()
+
+
+def test_main_default_scanning_excludes_nested_images(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Keep top-level-only scanning as the CLI default."""
+
+    nested_directory = tmp_path / "nested"
+    nested_directory.mkdir()
+    create_test_image(tmp_path / "root.jpg")
+    create_test_image(nested_directory / "nested.png")
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "dataset-summary",
+            str(tmp_path),
+            "--format",
+            "json",
+        ],
+    )
+
+    assert dataset_summary.main() == 0
+
+    captured = capsys.readouterr()
+    payload = json.loads(captured.out)
+
+    assert payload["total_images"] == 1
+    assert payload["valid_images"] == 1
+    assert payload["extension_counts"] == {"jpeg": 1}
+    assert captured.err == ""
+
+
+def test_main_recursive_scanning_includes_nested_valid_images(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Include supported images across nested directory levels."""
+
+    first_level = tmp_path / "first"
+    second_level = first_level / "second"
+    empty_directory = tmp_path / "empty"
+    second_level.mkdir(parents=True)
+    empty_directory.mkdir()
+    create_test_image(tmp_path / "root.jpg")
+    create_test_image(
+        first_level / "nested.png",
+        width=120,
+        height=80,
+    )
+    create_test_image(
+        second_level / "deep.webp",
+        width=140,
+        height=60,
+    )
+    (second_level / "notes.txt").write_text(
+        "unsupported",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "dataset-summary",
+            str(tmp_path),
+            "--recursive",
+            "--format",
+            "json",
+        ],
+    )
+
+    assert dataset_summary.main() == 0
+
+    captured = capsys.readouterr()
+    payload = json.loads(captured.out)
+
+    assert payload["total_images"] == 3
+    assert payload["valid_images"] == 3
+    assert payload["invalid_images"] == 0
+    assert payload["extension_counts"] == {
+        "jpeg": 1,
+        "png": 1,
+        "webp": 1,
+    }
+    assert payload["width"] == {
+        "minimum": 100,
+        "maximum": 140,
+        "average": 120.0,
+    }
+    assert payload["height"] == {
+        "minimum": 60,
+        "maximum": 100,
+        "average": 80.0,
+    }
+    assert payload["total_size_bytes"] > 0
+    assert captured.err == ""
+
+
+def test_main_recursive_scanning_reports_nested_invalid_image(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Include nested corrupt images in successful diagnostics."""
+
+    nested_directory = tmp_path / "nested"
+    nested_directory.mkdir()
+    invalid_image = nested_directory / "broken.jpg"
+    invalid_image.write_bytes(b"not a decodable image")
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "dataset-summary",
+            str(tmp_path),
+            "--recursive",
+            "--format",
+            "json",
+        ],
+    )
+
+    assert dataset_summary.main() == 0
+
+    captured = capsys.readouterr()
+    payload = json.loads(captured.out)
+
+    assert payload["total_images"] == 1
+    assert payload["valid_images"] == 0
+    assert payload["invalid_images"] == 1
+    assert payload["extension_counts"] == {"jpeg": 1}
+    assert payload["invalid_image_diagnostics"] == [
+        {
+            "image_path": invalid_image.as_posix(),
+            "errors": ["Image could not be decoded."],
+        }
+    ]
+    assert captured.err == ""
+
+
+@pytest.mark.parametrize(
+    ("arguments", "expected_recursive"),
+    [
+        ([], False),
+        (["--recursive"], True),
+    ],
+)
+def test_main_forwards_recursive_flag_to_analyzer(
+    arguments: list[str],
+    expected_recursive: bool,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Forward the public recursive option to the existing analyzer."""
+
+    received_recursive: list[bool] = []
+
+    def record_recursive(
+        dataset_path: Path,
+        *,
+        recursive: bool = False,
+    ) -> DatasetStatistics:
+        received_recursive.append(recursive)
+        return create_statistics()
+
+    monkeypatch.setattr(
+        dataset_summary,
+        "analyze_dataset",
+        record_recursive,
+    )
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "dataset-summary",
+            "data/sample_dataset",
+            *arguments,
+        ],
+    )
+
+    assert dataset_summary.main() == 0
+    assert received_recursive == [expected_recursive]
+    assert capsys.readouterr().err == ""
+
+
+def test_main_recursive_scanning_writes_output_file(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Write recursive JSON results through the existing output path."""
+
+    nested_directory = tmp_path / "nested"
+    nested_directory.mkdir()
+    create_test_image(tmp_path / "root.jpg")
+    create_test_image(nested_directory / "nested.png")
+    output_path = tmp_path / "summary.json"
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "dataset-summary",
+            str(tmp_path),
+            "--recursive",
+            "--format",
+            "json",
+            "--output",
+            str(output_path),
+        ],
+    )
+
+    assert dataset_summary.main() == 0
+
+    captured = capsys.readouterr()
+    payload = json.loads(output_path.read_text(encoding="utf-8"))
+
+    assert payload["total_images"] == 2
+    assert payload["extension_counts"] == {
+        "jpeg": 1,
+        "png": 1,
+    }
+    assert captured.out == ""
+    assert captured.err == ""
+
+
+def test_main_help_lists_recursive_option(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Advertise recursive scanning in argparse help."""
+
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["dataset-summary", "--help"],
+    )
+
+    with pytest.raises(SystemExit) as error:
+        dataset_summary.main()
+
+    captured = capsys.readouterr()
+
+    assert error.value.code == 0
+    assert "--recursive" in captured.out
+    assert captured.err == ""
+
+
+def test_main_rejects_recursive_option_value(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Reject values supplied to the boolean recursive flag."""
+
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "dataset-summary",
+            "data/sample_dataset",
+            "--recursive",
+            "true",
+        ],
+    )
+
+    with pytest.raises(SystemExit) as error:
+        dataset_summary.main()
+
+    captured = capsys.readouterr()
+
+    assert error.value.code == 2
+    assert captured.out == ""
+    assert "unrecognized arguments: true" in captured.err
+    assert "Traceback" not in captured.err
