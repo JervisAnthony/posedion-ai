@@ -1,205 +1,266 @@
 # Poseidon AI
 
-> A modular AI platform for underwater computer vision, diver safety, marine intelligence, and ocean analytics.
-
----
+Poseidon AI is an evolving underwater-intelligence platform. Its currently
+implemented component, **Nautilus Vision**, provides tested image and dataset
+engineering utilities for underwater computer-vision workflows.
 
 ## Overview
 
-Poseidon AI is an open-source computer vision platform designed to build intelligent underwater AI systems.
+The repository is useful today for inspecting, validating, preprocessing, and
+summarizing image datasets. Broader diver-safety, ocean-intelligence, model
+training, inference, and operational-monitoring capabilities remain roadmap
+work.
 
-The project aims to provide reusable, production-ready components for loading, validating, preprocessing, analyzing, and eventually detecting marine life from underwater imagery and video.
+## Status
 
-Rather than being a single machine learning model, Poseidon AI is designed as a collection of modular AI services that can evolve independently while working together as a unified platform.
+| Area | Status |
+|------|--------|
+| Nautilus Vision image utilities | Implemented |
+| Nautilus Vision dataset analysis and reporting | Implemented |
+| Invalid-image diagnostic capture | Implemented internally; not included in reports |
+| Dataset-summary installed command | Planned; use the Python module today |
+| Model training and inference | Planned |
+| Other Poseidon AI components | Planned or exploratory |
 
----
+## Current Nautilus Vision capabilities
 
-## Current Module
+- Discovers supported image files in deterministic path order.
+- Loads images with OpenCV and extracts filename, dimensions, channel count,
+  and file size.
+- Validates file existence, supported extensions, decodability, and minimum
+  dimensions.
+- Resizes and pads images while preserving aspect ratio.
+- Analyzes valid and invalid image counts, width and height statistics, valid
+  image bytes, and normalized extension counts.
+- Captures structured paths and validation errors for invalid images inside
+  `DatasetStatistics`.
+- Renders dataset reports as text, JSON, CSV, or Markdown.
+- Writes any selected report to a UTF-8 file.
+- Provides centralized console and rotating-file logging utilities.
+- Uses `pyproject.toml` for package metadata, dependencies, Python support,
+  and the installed `poseidon-inspect` command.
 
-### Nautilus Vision
+The dataset-summary reports currently expose invalid-image counts, but not the
+individual invalid-image diagnostics.
 
-Nautilus Vision is the first component of the Poseidon AI ecosystem.
+## Installation
 
-It provides the foundational computer vision pipeline required before any AI model performs inference.
-
-Current capabilities include:
-
-- Image loading
-- Image validation
-- Metadata extraction
-- Dataset loading
-- Image preprocessing
-- Command-line inspection tools
-- Automated unit testing
-
----
-
-## Long-Term Vision
-
-The Poseidon AI platform will eventually consist of several specialized AI modules.
-
-| Module | Purpose |
-|---------|----------|
-| Nautilus Vision | Computer Vision |
-| BuddySense | Diver Tracking |
-| CurrentAI | Ocean Current Prediction |
-| DecoGuard | Decompression Safety |
-| DiveAware | Dive Analytics |
-| SurfaceOps | Monitoring Dashboard |
-
----
-
-# Repository Structure
-
-```text
-poseidon-ai/
-
-├── architecture/
-├── configs/
-├── data/
-├── docs/
-├── models/
-├── notebooks/
-├── scripts/
-├── src/
-│   └── poseidon_ai/
-│       └── nautilus_vision/
-├── tests/
-├── pyproject.toml
-└── README.md
-```
-
----
-
-# Installation
-
-Clone the repository.
+Poseidon AI requires Python `>=3.13,<3.14`.
 
 ```bash
-git clone https://github.com/JervisAnthony/poseidon-ai.git
-```
-
-Enter the project.
-
-```bash
-cd poseidon-ai
-```
-
-Create a virtual environment.
-
-```bash
+git clone https://github.com/JervisAnthony/posedion-ai.git
+cd posedion-ai
 python -m venv .venv
 ```
 
-Activate it.
-
-Windows
+Activate the environment in Windows PowerShell:
 
 ```powershell
 .\.venv\Scripts\Activate.ps1
 ```
 
-Install the package.
+Or on macOS/Linux:
+
+```bash
+source .venv/bin/activate
+```
+
+Install the package in editable mode with its development dependencies:
 
 ```bash
 python -m pip install -e ".[dev]"
 ```
 
----
+This installs the declared runtime dependencies, NumPy and OpenCV, plus
+pytest from the `dev` extra.
 
-# Running Tests
+## Quick start
 
-Run all unit tests.
+Inspect one image after installation:
 
 ```bash
+poseidon-inspect path/to/image.jpg
+```
+
+Summarize the supported images directly inside a directory:
+
+```bash
+python -m poseidon_ai.nautilus_vision.dataset_summary path/to/dataset
+```
+
+The dataset-summary CLI is not recursive. Its current syntax and behavior are
+covered in the [dataset-summary CLI guide](docs/dataset-summary-cli.md).
+
+## Dataset-summary CLI
+
+```bash
+# Default text report
+python -m poseidon_ai.nautilus_vision.dataset_summary path/to/dataset
+
+# JSON using the format selector
+python -m poseidon_ai.nautilus_vision.dataset_summary path/to/dataset --format json
+
+# Backward-compatible JSON shortcut
+python -m poseidon_ai.nautilus_vision.dataset_summary path/to/dataset --json
+
+# CSV
+python -m poseidon_ai.nautilus_vision.dataset_summary path/to/dataset --format csv
+
+# Markdown
+python -m poseidon_ai.nautilus_vision.dataset_summary path/to/dataset --format markdown
+
+# Write the selected report instead of printing it
+python -m poseidon_ai.nautilus_vision.dataset_summary path/to/dataset --format json --output report.json
+```
+
+## Output examples
+
+Given two valid images (`JPEG` and `PNG`), representative output is:
+
+### Text
+
+```text
+Dataset Summary
+========================
+Dataset Path      : data/sample_dataset
+Total Images      : 2
+Valid Images      : 2
+Invalid Images    : 0
+
+Image Formats
+-------------
+JPEG              : 1
+PNG               : 1
+```
+
+The complete report continues with width, height, and formatted dataset-size
+sections.
+
+### JSON
+
+```json
+{
+  "dataset_path": "data/sample_dataset",
+  "total_images": 2,
+  "valid_images": 2,
+  "invalid_images": 0,
+  "extension_counts": {
+    "jpeg": 1,
+    "png": 1
+  },
+  "width": {
+    "minimum": 640,
+    "maximum": 1280,
+    "average": 960.0
+  },
+  "height": {
+    "minimum": 480,
+    "maximum": 720,
+    "average": 600.0
+  },
+  "total_size_bytes": 2048,
+  "formatted_size": "2.00 KB"
+}
+```
+
+### CSV
+
+```csv
+dataset_path,total_images,valid_images,invalid_images,extension_counts,min_width,max_width,average_width,min_height,max_height,average_height,total_size_bytes
+data/sample_dataset,2,2,0,"{""jpeg"": 1, ""png"": 1}",640,1280,960.00,480,720,600.00,2048
+```
+
+### Markdown
+
+```markdown
+# Dataset Summary
+
+## Overview
+
+| Metric | Value |
+|--------|------:|
+| Dataset Path | data/sample_dataset |
+| Total Images | 2 |
+| Valid Images | 2 |
+| Invalid Images | 0 |
+
+## Image Formats
+
+| Format | Images |
+|--------|-------:|
+| JPEG | 1 |
+| PNG | 1 |
+```
+
+## Supported image formats
+
+Nautilus Vision discovers these case-insensitive suffixes:
+
+| Format | Suffixes | Normalized report key |
+|--------|----------|-----------------------|
+| BMP | `.bmp` | `bmp` |
+| JPEG | `.jpg`, `.jpeg` | `jpeg` |
+| PNG | `.png` | `png` |
+| TIFF | `.tif`, `.tiff` | `tiff` |
+| WebP | `.webp` | `webp` |
+
+## Running tests
+
+```bash
+# Complete suite
 python -m pytest
+
+# Focused formatter and CLI coverage
+python -m pytest tests/test_dataset_summary.py -v
 ```
 
----
+The suite contained 53 passing tests when this documentation was verified.
 
-# Command Line Tools
+## Project structure
 
-Inspect an image.
-
-```bash
-poseidon-inspect image.jpg
+```text
+posedion-ai/
+├── docs/
+│   ├── architecture.md
+│   ├── dataset-summary-cli.md
+│   └── roadmap.md
+├── scripts/
+│   └── create_sample_dataset.py
+├── src/poseidon_ai/
+│   ├── logging_config.py
+│   ├── nautilus_vision/
+│   │   ├── dataset_analyzer.py
+│   │   ├── dataset_loader.py
+│   │   ├── dataset_statistics.py
+│   │   ├── dataset_summary.py
+│   │   └── image_validator.py
+│   └── utils/
+└── tests/
 ```
 
-Display help.
+## Architecture
 
-```bash
-poseidon-inspect --help
-```
+Nautilus Vision separates discovery, validation, metadata collection,
+analysis, and presentation. A formatter registry gives the CLI a consistent
+selection mechanism for all four report types. See
+[Architecture](docs/architecture.md) for the component and data-flow details.
 
----
+## Engineering principles
 
-# Development Principles
+- Analysis and presentation remain separate.
+- Structured dataclasses carry statistics and validation diagnostics.
+- Formatter output is deterministic, including normalized extension order.
+- CSV serialization uses the Python standard library.
+- CLI behavior and structured output are tested.
+- Paths are handled with `pathlib`, with portable report tests.
 
-Poseidon AI follows several engineering principles.
+## Roadmap
 
-- Modular architecture
-- Production-first design
-- Test-driven development
-- Clean package structure
-- Reusable components
-- Small, meaningful Git commits
-- Comprehensive documentation
+The [Poseidon AI roadmap](docs/roadmap.md) distinguishes completed,
+in-progress, planned, and exploratory work across Nautilus Vision,
+BuddySense, CurrentAI, DecoGuard, DiveAware, and SurfaceOps. Roadmap entries
+describe direction, not delivery commitments.
 
----
+## License
 
-# Technology Stack
-
-- Python 3.13
-- OpenCV
-- NumPy
-- PyTest
-- Setuptools
-- Git
-- GitHub
-
-Future additions include:
-
-- Ultralytics YOLO
-- PyTorch
-- FastAPI
-- Docker
-- Azure
-- AWS
-- Kubernetes
-
----
-
-# Roadmap
-
-## Foundation
-
-- [x] Project packaging
-- [x] Image loading
-- [x] Metadata extraction
-- [x] Image validation
-- [x] Dataset loading
-- [x] Image preprocessing
-- [x] CLI tools
-- [x] Unit testing
-
-## Computer Vision
-
-- [ ] YOLO model integration
-- [ ] Marine life detection
-- [ ] Video inference
-- [ ] Live camera support
-
-## AI Platform
-
-- [ ] REST API
-- [ ] Docker deployment
-- [ ] CI/CD
-- [ ] Cloud deployment
-- [ ] MLOps
-- [ ] Continuous model evaluation
-
----
-
-# License
-
-This project is licensed under the MIT License.
+Poseidon AI is available under the [MIT License](LICENSE).
