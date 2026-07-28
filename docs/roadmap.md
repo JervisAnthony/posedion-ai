@@ -22,6 +22,8 @@ exploratory entries are not delivery commitments and have no assigned dates.
 - Single-image `poseidon-inspect` command
 - Console and rotating-file logging utilities
 - Unit and CLI-level test coverage
+- GitHub Actions runs the complete test suite on Ubuntu and Windows with
+  Python 3.13
 - Repository overview, architecture, CLI, and roadmap documentation
 
 ### In progress
@@ -30,7 +32,6 @@ exploratory entries are not delivery commitments and have no assigned dates.
 
 ### Planned
 
-- Continuous integration
 - Improved dataset-summary error handling
 - Installed dataset-summary command
 - Recursive scanning through the dataset-summary CLI

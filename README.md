@@ -1,5 +1,7 @@
 # Poseidon AI
 
+[![Tests](https://github.com/JervisAnthony/posedion-ai/actions/workflows/tests.yml/badge.svg)](https://github.com/JervisAnthony/posedion-ai/actions/workflows/tests.yml)
+
 Poseidon AI is an evolving underwater-intelligence platform. Its currently
 implemented component, **Nautilus Vision**, provides tested image and dataset
 engineering utilities for underwater computer-vision workflows.
@@ -219,6 +221,9 @@ python -m pytest
 # Focused formatter and CLI coverage
 python -m pytest tests/test_dataset_summary.py -v
 ```
+
+GitHub Actions runs the complete test suite on Ubuntu and Windows with
+Python 3.13.
 
 The suite contained 59 passing tests when this documentation was verified.
 
