@@ -22,6 +22,7 @@ dependencies = [
 
 [project.scripts]
 poseidon-inspect = "poseidon_ai.nautilus_vision.inspect_image:main"
+poseidon-dataset-summary = "poseidon_ai.nautilus_vision.dataset_summary:main"
 
 [project.optional-dependencies]
 dev = [
