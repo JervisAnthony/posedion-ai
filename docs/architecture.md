@@ -85,28 +85,31 @@ factories.
 
 `InvalidImageDiagnostic` is an immutable value with an image `Path` and a
 tuple of validation error strings. The analyzer creates one entry for each
-invalid supported candidate. Current report formatters do not expose these
-entries; they expose only the invalid count.
+invalid supported candidate. Report formatters expose the portable image path
+and all captured errors without reading or validating the image again.
 
 ### Text and JSON formatters
 
 `nautilus_vision/dataset_summary.py` contains the human-readable text
 formatter and JSON formatter. Text uses uppercase image-format labels and a
-formatted size. JSON preserves normalized lowercase extension keys and
-includes raw and formatted sizes.
+formatted size, followed by diagnostics grouped under portable paths. JSON
+preserves normalized lowercase extension keys, includes raw and formatted
+sizes, and represents diagnostics as explicit dictionaries with error arrays.
 
 ### CSV formatter
 
 `nautilus_vision/dataset_csv.py` uses `csv.writer` and `io.StringIO`. It has a
-stable twelve-column schema. The `extension_counts` cell is a JSON object,
+stable thirteen-column schema. The `extension_counts` cell is a JSON object
+and `invalid_image_diagnostics` is a JSON array in one cell. Both are
 serialized with `json.dumps`, so formats do not create dynamic columns and
 commas and quotation marks are correctly escaped.
 
 ### Markdown formatter
 
-`nautilus_vision/dataset_markdown.py` renders Overview, Image Formats, Width,
-Height, and Dataset Size sections. Paths are rendered with POSIX separators
-for portable Markdown.
+`nautilus_vision/dataset_markdown.py` renders Overview, Image Formats,
+Invalid Image Diagnostics, Width, Height, and Dataset Size sections.
+Diagnostic paths use portable separators and safe code-span delimiters, and
+error bullets escape Markdown punctuation.
 
 ### Formatter registry
 
@@ -138,7 +141,8 @@ Analysis produces one structured model. Formatters translate that model
 without rediscovering or revalidating files. Isolated formatters keep
 presentation-specific concerns—JSON types, CSV escaping, Markdown tables,
 and text alignment—out of the analysis path and allow the CLI registry to
-select a format consistently.
+select a format consistently. Diagnostic reporting reads the structured
+analysis result; it never performs a second validation pass.
 
 ## Analyzer invariants
 
@@ -170,7 +174,6 @@ retain those lowercase keys. Text and Markdown uppercase them for display.
 - The dataset-summary CLI scans only the supplied directory; it exposes no
   recursive flag.
 - Validation thresholds are fixed at analyzer call sites.
-- Invalid-image diagnostics are retained internally but omitted from reports.
 - CLI errors from missing paths, wrong path types, decoding, or output writes
   are not converted into a dedicated user-facing error protocol.
 - Dataset size excludes invalid supported files.
@@ -181,7 +184,7 @@ retain those lowercase keys. Text and Markdown uppercase them for display.
 ## Planned architectural direction
 
 Planned work is tracked in the [roadmap](roadmap.md). Near-term directions
-include diagnostic reporting, continuous integration, improved CLI errors,
-recursive CLI scanning, configurable thresholds, richer dataset statistics,
-and manifest export. Training and inference remain future capabilities rather
-than part of the current architecture.
+include continuous integration, improved CLI errors, recursive CLI scanning,
+configurable thresholds, richer dataset statistics, and manifest export.
+Training and inference remain future capabilities rather than part of the
+current architecture.

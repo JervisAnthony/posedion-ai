@@ -11,8 +11,10 @@ import pytest
 import poseidon_ai.nautilus_vision.dataset_summary as dataset_summary
 from poseidon_ai.nautilus_vision.dataset_statistics import (
     DatasetStatistics,
+    InvalidImageDiagnostic,
 )
 from poseidon_ai.nautilus_vision.dataset_summary import (
+    format_dataset_summary,
     format_dataset_summary_json,
 )
 
@@ -37,7 +39,33 @@ def create_statistics() -> DatasetStatistics:
             "jpeg": 2,
             "png": 1,
         },
+        invalid_image_diagnostics=[
+            InvalidImageDiagnostic(
+                image_path=Path("data/a-corrupt.jpg"),
+                errors=("Image could not be decoded.",),
+            )
+        ],
     )
+
+
+def create_multiple_diagnostic_statistics() -> DatasetStatistics:
+    """Create statistics with unsorted, multi-error diagnostics."""
+
+    stats = create_statistics()
+    stats.total_images = 5
+    stats.invalid_images = 2
+    stats.extension_counts["png"] = 2
+    stats.invalid_image_diagnostics = [
+        InvalidImageDiagnostic(
+            image_path=Path("data/z-small.png"),
+            errors=(
+                "Width 10px is below minimum 32px.",
+                "Height 10px is below minimum 32px.",
+            ),
+        ),
+        *stats.invalid_image_diagnostics,
+    ]
+    return stats
 
 
 def test_format_dataset_summary_json() -> None:
@@ -68,6 +96,12 @@ def test_format_dataset_summary_json() -> None:
         "png",
         "webp",
     ]
+    assert payload["invalid_image_diagnostics"] == [
+        {
+            "image_path": "data/a-corrupt.jpg",
+            "errors": ["Image could not be decoded."],
+        }
+    ]
     assert payload["width"]["minimum"] == 640
     assert payload["height"]["average"] == 600.0
     assert payload["total_size_bytes"] == 2048
@@ -79,6 +113,17 @@ def test_format_dataset_summary_json_with_no_images() -> None:
 
     stats = create_statistics()
     stats.extension_counts = {}
+    stats.total_images = 0
+    stats.valid_images = 0
+    stats.invalid_images = 0
+    stats.min_width = 0
+    stats.max_width = 0
+    stats.average_width = 0.0
+    stats.min_height = 0
+    stats.max_height = 0
+    stats.average_height = 0.0
+    stats.total_size_bytes = 0
+    stats.invalid_image_diagnostics = []
 
     result = format_dataset_summary_json(
         Path("data/sample_dataset"),
@@ -86,6 +131,32 @@ def test_format_dataset_summary_json_with_no_images() -> None:
     )
 
     assert json.loads(result)["extension_counts"] == {}
+    assert json.loads(result)["invalid_image_diagnostics"] == []
+
+
+def test_format_dataset_summary_json_sorts_all_diagnostics() -> None:
+    """Serialize every diagnostic and error in portable path order."""
+
+    result = format_dataset_summary_json(
+        Path("data/sample_dataset"),
+        create_multiple_diagnostic_statistics(),
+    )
+
+    diagnostics = json.loads(result)["invalid_image_diagnostics"]
+
+    assert diagnostics == [
+        {
+            "image_path": "data/a-corrupt.jpg",
+            "errors": ["Image could not be decoded."],
+        },
+        {
+            "image_path": "data/z-small.png",
+            "errors": [
+                "Width 10px is below minimum 32px.",
+                "Height 10px is below minimum 32px.",
+            ],
+        },
+    ]
 
 
 def test_main_prints_text_summary(
@@ -123,6 +194,46 @@ def test_main_prints_text_summary(
     assert "WEBP              : 1" in captured.out
     assert captured.out.index("JPEG") < captured.out.index("PNG")
     assert captured.out.index("PNG") < captured.out.index("WEBP")
+    assert "Invalid Image Diagnostics" in captured.out
+    assert "data/a-corrupt.jpg" in captured.out
+    assert "  - Image could not be decoded." in captured.out
+
+
+def test_text_summary_sorts_all_diagnostics() -> None:
+    """Render every diagnostic and error in portable path order."""
+
+    result = format_dataset_summary(
+        Path("data/sample_dataset"),
+        create_multiple_diagnostic_statistics(),
+    )
+
+    assert result.index("data/a-corrupt.jpg") < result.index(
+        "data/z-small.png"
+    )
+    assert "  - Image could not be decoded." in result
+    assert "  - Width 10px is below minimum 32px." in result
+    assert "  - Height 10px is below minimum 32px." in result
+
+
+def test_text_summary_with_no_invalid_images() -> None:
+    """Render the empty diagnostic state."""
+
+    stats = create_statistics()
+    stats.total_images = stats.valid_images
+    stats.invalid_images = 0
+    stats.extension_counts = {
+        "jpeg": 1,
+        "png": 1,
+        "webp": 1,
+    }
+    stats.invalid_image_diagnostics = []
+
+    result = format_dataset_summary(
+        Path("data/sample_dataset"),
+        stats,
+    )
+
+    assert "No invalid images found." in result
 
 
 def test_main_prints_empty_image_formats(
@@ -181,6 +292,42 @@ def test_main_prints_json_summary(
 
     assert payload["total_images"] == 4
     assert payload["formatted_size"] == "2.00 KB"
+    assert payload["invalid_image_diagnostics"][0][
+        "image_path"
+    ] == "data/a-corrupt.jpg"
+
+
+def test_main_reports_analyzer_diagnostics(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Pass analyzer-produced diagnostics to the selected formatter."""
+
+    invalid_image = tmp_path / "broken.jpg"
+    invalid_image.write_bytes(b"not a decodable image")
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "dataset-summary",
+            str(tmp_path),
+            "--format",
+            "json",
+        ],
+    )
+
+    dataset_summary.main()
+
+    payload = json.loads(capsys.readouterr().out)
+    diagnostics = payload["invalid_image_diagnostics"]
+
+    assert payload["invalid_images"] == 1
+    assert len(diagnostics) == 1
+    assert diagnostics[0]["image_path"].endswith("/broken.jpg")
+    assert diagnostics[0]["errors"] == [
+        "Image could not be decoded."
+    ]
 
 
 def test_main_prints_csv_summary(
@@ -222,6 +369,7 @@ def test_main_prints_csv_summary(
         "valid_images",
         "invalid_images",
         "extension_counts",
+        "invalid_image_diagnostics",
         "min_width",
         "max_width",
         "average_width",
@@ -237,6 +385,10 @@ def test_main_prints_csv_summary(
         "3",
         "1",
         '{"jpeg": 2, "png": 1, "webp": 1}',
+        (
+            '[{"image_path": "data/a-corrupt.jpg", '
+            '"errors": ["Image could not be decoded."]}]'
+        ),
         "640",
         "1280",
         "906.67",
@@ -283,6 +435,9 @@ def test_json_shortcut_takes_precedence_over_format(
         "png": 1,
         "webp": 1,
     }
+    assert payload["invalid_image_diagnostics"][0][
+        "errors"
+    ] == ["Image could not be decoded."]
 
 
 def test_main_writes_summary_to_file(
@@ -353,5 +508,7 @@ def test_main_prints_markdown_summary(
     assert "## Overview" in captured.out
     assert "| Total Images | 4 |" in captured.out
     assert "| JPEG | 2 |" in captured.out
+    assert "## Invalid Image Diagnostics" in captured.out
+    assert "### `data/a-corrupt.jpg`" in captured.out
     assert "| Average | 906.67 |" in captured.out
     assert "| Size | 2.00 KB |" in captured.out

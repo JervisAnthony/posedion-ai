@@ -8,7 +8,10 @@ from pathlib import Path
 from typing import Callable
 
 from poseidon_ai.nautilus_vision.dataset_analyzer import analyze_dataset
-from poseidon_ai.nautilus_vision.dataset_csv import format_dataset_csv
+from poseidon_ai.nautilus_vision.dataset_csv import (
+    _serialize_invalid_image_diagnostics,
+    format_dataset_csv,
+)
 from poseidon_ai.nautilus_vision.dataset_statistics import DatasetStatistics
 from poseidon_ai.utils.filesize import format_file_size
 from poseidon_ai.nautilus_vision.dataset_markdown import (
@@ -34,6 +37,28 @@ def format_dataset_summary(
     else:
         image_formats = "No supported image files found."
 
+    if stats.invalid_image_diagnostics:
+        invalid_image_diagnostics = "\n\n".join(
+            "\n".join(
+                [
+                    diagnostic.image_path.as_posix(),
+                    *[
+                        f"  - {error}"
+                        for error in diagnostic.errors
+                    ],
+                ]
+            )
+            for diagnostic in sorted(
+                stats.invalid_image_diagnostics,
+                key=lambda diagnostic: (
+                    diagnostic.image_path.as_posix().casefold(),
+                    diagnostic.image_path.as_posix(),
+                ),
+            )
+        )
+    else:
+        invalid_image_diagnostics = "No invalid images found."
+
     return (
         "Dataset Summary\n"
         "========================\n"
@@ -45,6 +70,10 @@ def format_dataset_summary(
         "Image Formats\n"
         "-------------\n"
         f"{image_formats}\n"
+        "\n"
+        "Invalid Image Diagnostics\n"
+        "-------------------------\n"
+        f"{invalid_image_diagnostics}\n"
         "\n"
         "Width\n"
         "-----\n"
@@ -76,6 +105,11 @@ def format_dataset_summary_json(
         "invalid_images": stats.invalid_images,
         "extension_counts": dict(
             sorted(stats.extension_counts.items())
+        ),
+        "invalid_image_diagnostics": (
+            _serialize_invalid_image_diagnostics(
+                stats.invalid_image_diagnostics
+            )
         ),
         "width": {
             "minimum": stats.min_width,
