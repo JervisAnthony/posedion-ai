@@ -15,7 +15,7 @@ exploratory entries are not delivery commitments and have no assigned dates.
 - Aspect-ratio-preserving letterbox preprocessing
 - Dataset totals, valid/invalid counts, dimensions, and valid-image size
 - Normalized image-extension statistics
-- Structured internal invalid-image diagnostics
+- Structured invalid-image diagnostics in every dataset report
 - Text, JSON, CSV, and Markdown dataset reports
 - UTF-8 report file output
 - Formatter registry and legacy JSON shortcut
@@ -30,7 +30,6 @@ exploratory entries are not delivery commitments and have no assigned dates.
 
 ### Planned
 
-- Include invalid-image diagnostics in appropriate reports
 - Continuous integration
 - Improved dataset-summary error handling
 - Installed dataset-summary command

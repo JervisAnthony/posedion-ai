@@ -8,6 +8,7 @@ from poseidon_ai.nautilus_vision.dataset_csv import (
 )
 from poseidon_ai.nautilus_vision.dataset_statistics import (
     DatasetStatistics,
+    InvalidImageDiagnostic,
 )
 
 def create_statistics() -> DatasetStatistics:
@@ -30,6 +31,12 @@ def create_statistics() -> DatasetStatistics:
             "jpeg": 2,
             "png": 1,
         },
+        invalid_image_diagnostics=[
+            InvalidImageDiagnostic(
+                image_path=Path("data/a-corrupt.jpg"),
+                errors=("Image could not be decoded.",),
+            )
+        ],
     )
 
 def test_format_dataset_csv() -> None:
@@ -51,6 +58,7 @@ def test_format_dataset_csv() -> None:
         "valid_images",
         "invalid_images",
         "extension_counts",
+        "invalid_image_diagnostics",
         "min_width",
         "max_width",
         "average_width",
@@ -68,13 +76,19 @@ def test_format_dataset_csv() -> None:
         "png": 1,
         "webp": 1,
     }
-    assert values[5] == "640"
-    assert values[6] == "1280"
-    assert values[7] == "906.67"
-    assert values[8] == "480"
-    assert values[9] == "720"
-    assert values[10] == "600.00"
-    assert values[11] == "2048"
+    assert json.loads(values[5]) == [
+        {
+            "image_path": "data/a-corrupt.jpg",
+            "errors": ["Image could not be decoded."],
+        }
+    ]
+    assert values[6] == "640"
+    assert values[7] == "1280"
+    assert values[8] == "906.67"
+    assert values[9] == "480"
+    assert values[10] == "720"
+    assert values[11] == "600.00"
+    assert values[12] == "2048"
 
 
 def test_format_dataset_csv_escapes_extension_json() -> None:
@@ -95,11 +109,62 @@ def test_format_dataset_csv_escapes_extension_json() -> None:
     }
 
 
+def test_format_dataset_csv_escapes_and_sorts_diagnostics() -> None:
+    """Preserve quoted, comma-separated, and multiple diagnostic errors."""
+
+    stats = create_statistics()
+    stats.total_images = 5
+    stats.invalid_images = 2
+    stats.extension_counts["png"] = 2
+    stats.invalid_image_diagnostics = [
+        InvalidImageDiagnostic(
+            image_path=Path("data/z-small.png"),
+            errors=(
+                'Width is "10px", below minimum.',
+                "Height 10px is below minimum 32px.",
+            ),
+        ),
+        *stats.invalid_image_diagnostics,
+    ]
+
+    result = format_dataset_csv(
+        Path("data/sample_dataset"),
+        stats,
+    )
+    rows = list(csv.reader(io.StringIO(result)))
+
+    assert len(rows) == 2
+    assert json.loads(rows[1][5]) == [
+        {
+            "image_path": "data/a-corrupt.jpg",
+            "errors": ["Image could not be decoded."],
+        },
+        {
+            "image_path": "data/z-small.png",
+            "errors": [
+                'Width is "10px", below minimum.',
+                "Height 10px is below minimum 32px.",
+            ],
+        },
+    ]
+
+
 def test_format_dataset_csv_with_no_images() -> None:
     """Represent empty extension statistics as a JSON object."""
 
     stats = create_statistics()
     stats.extension_counts = {}
+    stats.total_images = 0
+    stats.valid_images = 0
+    stats.invalid_images = 0
+    stats.min_width = 0
+    stats.max_width = 0
+    stats.average_width = 0.0
+    stats.min_height = 0
+    stats.max_height = 0
+    stats.average_height = 0.0
+    stats.total_size_bytes = 0
+    stats.invalid_image_diagnostics = []
 
     result = format_dataset_csv(
         Path("data/sample_dataset"),
@@ -109,3 +174,4 @@ def test_format_dataset_csv_with_no_images() -> None:
     rows = list(csv.reader(io.StringIO(result)))
 
     assert json.loads(rows[1][4]) == {}
+    assert json.loads(rows[1][5]) == []

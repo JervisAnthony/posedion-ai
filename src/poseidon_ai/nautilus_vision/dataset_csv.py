@@ -3,6 +3,9 @@ import io
 import json
 from pathlib import Path
 
+from poseidon_ai.nautilus_vision.dataset_serialization import (
+    serialize_invalid_image_diagnostics,
+)
 from poseidon_ai.nautilus_vision.dataset_statistics import (
     DatasetStatistics,
 )
@@ -26,6 +29,7 @@ def format_dataset_csv(
             "valid_images",
             "invalid_images",
             "extension_counts",
+            "invalid_image_diagnostics",
             "min_width",
             "max_width",
             "average_width",
@@ -43,6 +47,11 @@ def format_dataset_csv(
             stats.invalid_images,
             json.dumps(
                 dict(sorted(stats.extension_counts.items()))
+            ),
+            json.dumps(
+                serialize_invalid_image_diagnostics(
+                    stats.invalid_image_diagnostics
+                )
             ),
             stats.min_width,
             stats.max_width,

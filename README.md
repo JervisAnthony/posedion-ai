@@ -17,7 +17,7 @@ work.
 |------|--------|
 | Nautilus Vision image utilities | Implemented |
 | Nautilus Vision dataset analysis and reporting | Implemented |
-| Invalid-image diagnostic capture | Implemented internally; not included in reports |
+| Invalid-image diagnostic reporting | Implemented in all dataset reports |
 | Dataset-summary installed command | Planned; use the Python module today |
 | Model training and inference | Planned |
 | Other Poseidon AI components | Planned or exploratory |
@@ -32,16 +32,13 @@ work.
 - Resizes and pads images while preserving aspect ratio.
 - Analyzes valid and invalid image counts, width and height statistics, valid
   image bytes, and normalized extension counts.
-- Captures structured paths and validation errors for invalid images inside
-  `DatasetStatistics`.
+- Captures structured paths and every validation error for invalid images,
+  then exposes them in each dataset report.
 - Renders dataset reports as text, JSON, CSV, or Markdown.
 - Writes any selected report to a UTF-8 file.
 - Provides centralized console and rotating-file logging utilities.
 - Uses `pyproject.toml` for package metadata, dependencies, Python support,
   and the installed `poseidon-inspect` command.
-
-The dataset-summary reports currently expose invalid-image counts, but not the
-individual invalid-image diagnostics.
 
 ## Installation
 
@@ -131,6 +128,10 @@ Image Formats
 -------------
 JPEG              : 1
 PNG               : 1
+
+Invalid Image Diagnostics
+-------------------------
+No invalid images found.
 ```
 
 The complete report continues with width, height, and formatted dataset-size
@@ -148,6 +149,7 @@ sections.
     "jpeg": 1,
     "png": 1
   },
+  "invalid_image_diagnostics": [],
   "width": {
     "minimum": 640,
     "maximum": 1280,
@@ -166,8 +168,8 @@ sections.
 ### CSV
 
 ```csv
-dataset_path,total_images,valid_images,invalid_images,extension_counts,min_width,max_width,average_width,min_height,max_height,average_height,total_size_bytes
-data/sample_dataset,2,2,0,"{""jpeg"": 1, ""png"": 1}",640,1280,960.00,480,720,600.00,2048
+dataset_path,total_images,valid_images,invalid_images,extension_counts,invalid_image_diagnostics,min_width,max_width,average_width,min_height,max_height,average_height,total_size_bytes
+data/sample_dataset,2,2,0,"{""jpeg"": 1, ""png"": 1}",[],640,1280,960.00,480,720,600.00,2048
 ```
 
 ### Markdown
@@ -190,6 +192,10 @@ data/sample_dataset,2,2,0,"{""jpeg"": 1, ""png"": 1}",640,1280,960.00,480,720,60
 |--------|-------:|
 | JPEG | 1 |
 | PNG | 1 |
+
+## Invalid Image Diagnostics
+
+No invalid images found.
 ```
 
 ## Supported image formats
@@ -214,7 +220,7 @@ python -m pytest
 python -m pytest tests/test_dataset_summary.py -v
 ```
 
-The suite contained 53 passing tests when this documentation was verified.
+The suite contained 59 passing tests when this documentation was verified.
 
 ## Project structure
 

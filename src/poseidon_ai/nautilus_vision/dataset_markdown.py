@@ -6,6 +6,33 @@ from poseidon_ai.nautilus_vision.dataset_statistics import (
 from poseidon_ai.utils.filesize import format_file_size
 
 
+def _format_inline_code(value: str) -> str:
+    """Wrap text in a Markdown code span that tolerates backticks."""
+
+    longest_run = 0
+    current_run = 0
+    for character in value:
+        if character == "`":
+            current_run += 1
+            longest_run = max(longest_run, current_run)
+        else:
+            current_run = 0
+
+    delimiter = "`" * (longest_run + 1)
+    padding = " " if value.startswith("`") or value.endswith("`") else ""
+    return f"{delimiter}{padding}{value}{padding}{delimiter}"
+
+
+def _escape_markdown_text(value: str) -> str:
+    """Escape Markdown punctuation while preserving rendered error text."""
+
+    escaped = value.replace("\\", "\\\\")
+    for character in ("`", "*", "_", "{", "}", "[", "]", "<", ">", "#"):
+        escaped = escaped.replace(character, f"\\{character}")
+
+    return " ".join(escaped.splitlines())
+
+
 def format_dataset_markdown(
     dataset_path: Path,
     stats: DatasetStatistics,
@@ -26,6 +53,33 @@ def format_dataset_markdown(
     else:
         image_formats = ["No supported image files found."]
 
+    if stats.invalid_image_diagnostics:
+        invalid_image_diagnostics = []
+        for diagnostic in sorted(
+            stats.invalid_image_diagnostics,
+            key=lambda diagnostic: (
+                diagnostic.image_path.as_posix().casefold(),
+                diagnostic.image_path.as_posix(),
+            ),
+        ):
+            invalid_image_diagnostics.extend(
+                [
+                    "### "
+                    + _format_inline_code(
+                        diagnostic.image_path.as_posix()
+                    ),
+                    "",
+                    *[
+                        f"- {_escape_markdown_text(error)}"
+                        for error in diagnostic.errors
+                    ],
+                    "",
+                ]
+            )
+        invalid_image_diagnostics.pop()
+    else:
+        invalid_image_diagnostics = ["No invalid images found."]
+
     markdown_lines = [
         "# Dataset Summary",
         "",
@@ -41,6 +95,10 @@ def format_dataset_markdown(
         "## Image Formats",
         "",
         *image_formats,
+        "",
+        "## Invalid Image Diagnostics",
+        "",
+        *invalid_image_diagnostics,
         "",
         "## Width",
         "",

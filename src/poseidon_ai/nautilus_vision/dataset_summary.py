@@ -9,11 +9,14 @@ from typing import Callable
 
 from poseidon_ai.nautilus_vision.dataset_analyzer import analyze_dataset
 from poseidon_ai.nautilus_vision.dataset_csv import format_dataset_csv
-from poseidon_ai.nautilus_vision.dataset_statistics import DatasetStatistics
-from poseidon_ai.utils.filesize import format_file_size
 from poseidon_ai.nautilus_vision.dataset_markdown import (
     format_dataset_markdown,
 )
+from poseidon_ai.nautilus_vision.dataset_serialization import (
+    serialize_invalid_image_diagnostics,
+)
+from poseidon_ai.nautilus_vision.dataset_statistics import DatasetStatistics
+from poseidon_ai.utils.filesize import format_file_size
 
 DatasetFormatter = Callable[[Path, DatasetStatistics], str]
 
@@ -34,6 +37,28 @@ def format_dataset_summary(
     else:
         image_formats = "No supported image files found."
 
+    if stats.invalid_image_diagnostics:
+        invalid_image_diagnostics = "\n\n".join(
+            "\n".join(
+                [
+                    diagnostic.image_path.as_posix(),
+                    *[
+                        f"  - {error}"
+                        for error in diagnostic.errors
+                    ],
+                ]
+            )
+            for diagnostic in sorted(
+                stats.invalid_image_diagnostics,
+                key=lambda diagnostic: (
+                    diagnostic.image_path.as_posix().casefold(),
+                    diagnostic.image_path.as_posix(),
+                ),
+            )
+        )
+    else:
+        invalid_image_diagnostics = "No invalid images found."
+
     return (
         "Dataset Summary\n"
         "========================\n"
@@ -45,6 +70,10 @@ def format_dataset_summary(
         "Image Formats\n"
         "-------------\n"
         f"{image_formats}\n"
+        "\n"
+        "Invalid Image Diagnostics\n"
+        "-------------------------\n"
+        f"{invalid_image_diagnostics}\n"
         "\n"
         "Width\n"
         "-----\n"
@@ -63,6 +92,7 @@ def format_dataset_summary(
         f"Dataset Size      : {format_file_size(stats.total_size_bytes)}\n"
     )
 
+
 def format_dataset_summary_json(
     dataset_path: Path,
     stats: DatasetStatistics,
@@ -76,6 +106,11 @@ def format_dataset_summary_json(
         "invalid_images": stats.invalid_images,
         "extension_counts": dict(
             sorted(stats.extension_counts.items())
+        ),
+        "invalid_image_diagnostics": (
+            serialize_invalid_image_diagnostics(
+                stats.invalid_image_diagnostics
+            )
         ),
         "width": {
             "minimum": stats.min_width,
@@ -159,6 +194,7 @@ def main() -> None:
         )
     else:
         print(summary)
+
 
 if __name__ == "__main__":
     main()

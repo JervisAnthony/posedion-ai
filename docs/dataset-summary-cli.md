@@ -80,12 +80,14 @@ Text output includes:
 
 1. dataset path and image counts;
 2. alphabetically ordered, uppercase image-format counts;
-3. valid-image width statistics;
-4. valid-image height statistics;
-5. valid-image dataset size in human-readable units.
+3. invalid-image paths with every validation error;
+4. valid-image width statistics;
+5. valid-image height statistics;
+6. valid-image dataset size in human-readable units.
 
 An empty candidate set displays `No supported image files found.` and zero
-dimension and size values.
+dimension and size values. When there are no diagnostics, the diagnostics
+section displays `No invalid images found.`
 
 ## JSON schema
 
@@ -99,6 +101,14 @@ dimension and size values.
     "jpeg": 2,
     "png": 1
   },
+  "invalid_image_diagnostics": [
+    {
+      "image_path": "data/a-corrupt.jpg",
+      "errors": [
+        "Image could not be decoded."
+      ]
+    }
+  ],
   "width": {
     "minimum": 640,
     "maximum": 1280,
@@ -117,7 +127,9 @@ dimension and size values.
 Numbers remain JSON numbers. `extension_counts` is an alphabetically ordered
 object with normalized lowercase keys. It counts supported candidates,
 including invalid ones. Width, height, and size fields describe valid images.
-Individual invalid-image diagnostics are not part of this schema.
+`invalid_image_diagnostics` is a path-sorted array. Each entry has a portable
+path string and an `errors` array in original validator order. An analysis
+with no invalid images uses an empty array.
 
 ## CSV schema
 
@@ -130,30 +142,35 @@ The CSV report contains a header and one data row with these stable columns:
 | 3 | `valid_images` |
 | 4 | `invalid_images` |
 | 5 | `extension_counts` |
-| 6 | `min_width` |
-| 7 | `max_width` |
-| 8 | `average_width` |
-| 9 | `min_height` |
-| 10 | `max_height` |
-| 11 | `average_height` |
-| 12 | `total_size_bytes` |
+| 6 | `invalid_image_diagnostics` |
+| 7 | `min_width` |
+| 8 | `max_width` |
+| 9 | `average_width` |
+| 10 | `min_height` |
+| 11 | `max_height` |
+| 12 | `average_height` |
+| 13 | `total_size_bytes` |
 
 `extension_counts` is a JSON object stored in one CSV field:
 
 ```csv
-data/sample_dataset,3,2,1,"{""jpeg"": 2, ""png"": 1}",640,1280,960.00,480,720,600.00,2048
+data/sample_dataset,3,2,1,"{""jpeg"": 2, ""png"": 1}","[{""image_path"": ""data/a-corrupt.jpg"", ""errors"": [""Image could not be decoded.""]}]",640,1280,960.00,480,720,600.00,2048
 ```
 
 CSV quoting is produced by Python's standard-library `csv.writer`. Consumers
-should parse the document with a CSV parser and then parse column 5 as JSON.
-Average dimensions are rendered with two decimal places.
+should parse the document with a CSV parser, then parse column 5 as a JSON
+object and column 6 as a JSON array. The complete diagnostic collection stays
+in that one cell; an empty collection is `[]`. Average dimensions are
+rendered with two decimal places.
 
 ## Markdown output
 
-Markdown output contains five second-level sections: Overview, Image Formats,
-Width, Height, and Dataset Size. Image formats are alphabetically ordered and
-uppercased. If no supported images are found, the Image Formats section
-contains the same empty-state sentence as text output.
+Markdown output contains six second-level sections: Overview, Image Formats,
+Invalid Image Diagnostics, Width, Height, and Dataset Size. Image formats are
+alphabetically ordered and uppercased. Diagnostics are path-sorted, use a
+third-level code-formatted path heading, and list every error as a bullet. If
+no supported images or diagnostics are found, their sections contain the same
+empty-state sentences as text output.
 
 The Markdown formatter renders the dataset path with `/` separators so saved
 reports are portable across operating systems.
@@ -175,8 +192,6 @@ currently implemented.
 
 - Discovery is non-recursive through this CLI.
 - Validation uses the current default minimum of 32×32 pixels.
-- Diagnostics for individual invalid images are captured internally but not
-  rendered.
 - The CLI has no installed console command; invoke the module as shown above.
 - The parent of an `--output` path is not created automatically.
 
@@ -203,8 +218,9 @@ The CLI scans only the top level. Confirm files use a supported suffix:
 ### Images are counted as invalid
 
 A supported file must be decodable by OpenCV and at least 32 pixels wide and
-32 pixels high. The current reports provide only the invalid count; detailed
-validation messages are not yet rendered.
+32 pixels high. Each report includes the invalid path and every captured
+validation error; use those diagnostics to identify decoding or dimension
+failures.
 
 ### Output-file errors
 
