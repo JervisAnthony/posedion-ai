@@ -6,6 +6,9 @@ from pathlib import Path
 import cv2
 
 
+DEFAULT_MIN_WIDTH = 32
+DEFAULT_MIN_HEIGHT = 32
+
 SUPPORTED_EXTENSIONS = {
     ".jpg",
     ".jpeg",
@@ -32,8 +35,8 @@ class ImageValidationResult:
 def validate_image(
     image_path: str | Path,
     *,
-    min_width: int = 32,
-    min_height: int = 32,
+    min_width: int = DEFAULT_MIN_WIDTH,
+    min_height: int = DEFAULT_MIN_HEIGHT,
 ) -> ImageValidationResult:
     """Validate whether an image can enter the vision pipeline."""
 

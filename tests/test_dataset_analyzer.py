@@ -202,8 +202,93 @@ def test_analyze_dataset_preserves_multiple_validation_errors(
         "Width 10px is below minimum 32px.",
         "Height 10px is below minimum 32px.",
     )
-
     assert (
         len(stats.invalid_image_diagnostics)
         == stats.invalid_images
+    )
+
+
+def test_analyze_dataset_keeps_default_validation_thresholds(
+    tmp_path: Path,
+) -> None:
+    """Keep 32-by-32 validation when thresholds are omitted."""
+
+    image_path = tmp_path / "small.png"
+    create_test_image(image_path, width=20, height=20)
+
+    stats = analyze_dataset(tmp_path)
+
+    assert stats.valid_images == 0
+    assert stats.invalid_images == 1
+    assert stats.invalid_image_diagnostics[0].errors == (
+        "Width 20px is below minimum 32px.",
+        "Height 20px is below minimum 32px.",
+    )
+
+
+def test_analyze_dataset_accepts_lower_validation_thresholds(
+    tmp_path: Path,
+) -> None:
+    """Allow a small image under explicit lower thresholds."""
+
+    create_test_image(
+        tmp_path / "small.png",
+        width=20,
+        height=20,
+    )
+
+    stats = analyze_dataset(
+        tmp_path,
+        min_width=10,
+        min_height=10,
+    )
+
+    assert stats.total_images == 1
+    assert stats.valid_images == 1
+    assert stats.invalid_images == 0
+    assert stats.invalid_image_diagnostics == []
+
+
+def test_analyze_dataset_applies_custom_width_independently(
+    tmp_path: Path,
+) -> None:
+    """Preserve only the failing custom width diagnostic."""
+
+    image_path = tmp_path / "image.png"
+    create_test_image(image_path, width=50, height=60)
+
+    stats = analyze_dataset(
+        tmp_path,
+        min_width=100,
+        min_height=40,
+    )
+
+    assert stats.valid_images == 0
+    assert stats.invalid_images == 1
+    assert stats.invalid_image_diagnostics[0].image_path == image_path
+    assert stats.invalid_image_diagnostics[0].errors == (
+        "Width 50px is below minimum 100px.",
+    )
+
+
+def test_analyze_dataset_preserves_custom_error_order(
+    tmp_path: Path,
+) -> None:
+    """Keep width before height for multiple custom failures."""
+
+    create_test_image(
+        tmp_path / "image.png",
+        width=50,
+        height=60,
+    )
+
+    stats = analyze_dataset(
+        tmp_path,
+        min_width=100,
+        min_height=100,
+    )
+
+    assert stats.invalid_image_diagnostics[0].errors == (
+        "Width 50px is below minimum 100px.",
+        "Height 60px is below minimum 100px.",
     )

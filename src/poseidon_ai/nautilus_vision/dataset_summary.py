@@ -17,6 +17,10 @@ from poseidon_ai.nautilus_vision.dataset_serialization import (
     serialize_invalid_image_diagnostics,
 )
 from poseidon_ai.nautilus_vision.dataset_statistics import DatasetStatistics
+from poseidon_ai.nautilus_vision.image_validator import (
+    DEFAULT_MIN_HEIGHT,
+    DEFAULT_MIN_WIDTH,
+)
 from poseidon_ai.utils.filesize import format_file_size
 
 DatasetFormatter = Callable[[Path, DatasetStatistics], str]
@@ -149,6 +153,24 @@ def _os_error_message(error: OSError) -> str:
     return error.strerror or str(error)
 
 
+def _positive_pixel_count(value: str) -> int:
+    """Parse a positive integer pixel count for argparse."""
+
+    try:
+        pixels = int(value)
+    except ValueError as error:
+        raise argparse.ArgumentTypeError(
+            "must be a positive integer"
+        ) from error
+
+    if pixels < 1:
+        raise argparse.ArgumentTypeError(
+            "must be a positive integer"
+        )
+
+    return pixels
+
+
 def main() -> int:
     """Run the dataset summary command."""
 
@@ -165,6 +187,28 @@ def main() -> int:
         "--recursive",
         action="store_true",
         help="Search for images in nested directories.",
+    )
+
+    parser.add_argument(
+        "--min-width",
+        type=_positive_pixel_count,
+        default=DEFAULT_MIN_WIDTH,
+        metavar="PIXELS",
+        help=(
+            "Minimum valid image width in pixels. "
+            f"Default: {DEFAULT_MIN_WIDTH}."
+        ),
+    )
+
+    parser.add_argument(
+        "--min-height",
+        type=_positive_pixel_count,
+        default=DEFAULT_MIN_HEIGHT,
+        metavar="PIXELS",
+        help=(
+            "Minimum valid image height in pixels. "
+            f"Default: {DEFAULT_MIN_HEIGHT}."
+        ),
     )
 
     parser.add_argument(
@@ -194,6 +238,8 @@ def main() -> int:
         stats = analyze_dataset(
             dataset_path,
             recursive=args.recursive,
+            min_width=args.min_width,
+            min_height=args.min_height,
         )
     except FileNotFoundError:
         print(

@@ -51,6 +51,10 @@ exposes recursive discovery through `--recursive`.
 - whether OpenCV can decode the file;
 - minimum width and height, both 32 pixels by default.
 
+`DEFAULT_MIN_WIDTH` and `DEFAULT_MIN_HEIGHT` define those shared defaults.
+Callers can supply independent threshold values, while dimension checks and
+their ordered validation errors remain owned by the image validator.
+
 It returns an `ImageValidationResult` containing validity, error messages,
 and decoded dimensions and channel count when available.
 
@@ -68,7 +72,9 @@ cannot load the requested image.
 It counts every supported candidate, normalizes and counts its extension,
 records invalid-image diagnostics, and collects size and dimension data for
 valid images. It computes minimum, maximum, and arithmetic mean dimensions
-when at least one image is valid.
+when at least one image is valid. Its keyword-only minimum width and height
+default to the validator constants and are forwarded directly to
+`validate_image`.
 
 `total_size_bytes` is the sum of valid-image file sizes. Invalid candidates
 still contribute to `total_images` and `extension_counts`.
@@ -129,12 +135,14 @@ behavior.
 The CLI parses the dataset path, output format, legacy `--json` shortcut, and
 optional output path. Its `--recursive` boolean is passed directly to the
 existing analyzer, which delegates discovery to the loader; the CLI contains
-no separate traversal implementation. It analyzes once, selects a formatter,
-then prints or writes the result. Loaders and analyzers retain normal Python
-exception semantics for library callers. At the CLI boundary, expected
-dataset and output filesystem failures are translated into concise standard
-error messages and status 1. Unexpected programming failures are not broadly
-swallowed.
+no separate traversal implementation. The CLI also parses positive
+`--min-width` and `--min-height` values and forwards them to the analyzer; it
+does not perform dimension validation itself. It analyzes once, selects a
+formatter, then prints or writes the result. Loaders and analyzers retain
+normal Python exception semantics for library callers. At the CLI boundary,
+expected dataset and output filesystem failures are translated into concise
+standard error messages and status 1. Unexpected programming failures are
+not broadly swallowed.
 
 The installed `poseidon-inspect` command is separate and inspects metadata for
 one image.
@@ -183,7 +191,6 @@ retain those lowercase keys. Text and Markdown uppercase them for display.
 
 ## Current limitations
 
-- Validation thresholds are fixed at analyzer call sites.
 - Dataset size excludes invalid supported files.
 - There is no model-training, inference, video, or live-camera pipeline.
 - Runtime YAML configuration is not present in the tracked repository.
@@ -191,6 +198,5 @@ retain those lowercase keys. Text and Markdown uppercase them for display.
 ## Planned architectural direction
 
 Planned work is tracked in the [roadmap](roadmap.md). Near-term directions
-include configurable thresholds, richer dataset statistics, and manifest
-export. Training and inference remain future capabilities rather than part
-of the current architecture.
+include richer dataset statistics and manifest export. Training and inference
+remain future capabilities rather than part of the current architecture.
