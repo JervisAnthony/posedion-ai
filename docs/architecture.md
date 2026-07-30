@@ -50,9 +50,9 @@ flowchart LR
     Y --> Z[Immutable YOLO dataset analysis result]
 ```
 
-The same flow in words: the CLI accepts a dataset directory, the loader
-returns supported candidate paths, the analyzer validates each path and
-collects metadata for valid images. It hashes only same-size valid candidates
+The image dataset-reporting flow in words: the CLI accepts a dataset
+directory, the loader returns supported candidate paths, the analyzer
+validates each path and collects metadata for valid images. It hashes only same-size valid candidates
 for exact duplicate detection. The aggregate-only API returns statistics,
 while the manifest API also finalizes relative per-candidate entries from the
 same pass. A selected formatter renders the aggregate result for standard
