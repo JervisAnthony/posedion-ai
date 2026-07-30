@@ -30,6 +30,14 @@ flowchart LR
     P --> Q[UTF-8 manifest file]
 ```
 
+YOLO label validation is a separate library flow:
+
+```mermaid
+flowchart LR
+    R[YOLO label path] --> S[YOLO label validator]
+    S --> T[YoloLabelValidationResult]
+```
+
 The same flow in words: the CLI accepts a dataset directory, the loader
 returns supported candidate paths, the analyzer validates each path and
 collects metadata for valid images. It hashes only same-size valid candidates
@@ -64,6 +72,19 @@ their ordered validation errors remain owned by the image validator.
 
 It returns an `ImageValidationResult` containing validity, error messages,
 and decoded dimensions and channel count when available.
+
+### YOLO label validator
+
+`nautilus_vision/yolo_label.py` owns parsing and validation for one UTF-8 YOLO
+detection-label file. It is independent of the image dataset analyzer and is
+not used by the dataset-summary CLI. Parsing performs no image decoding,
+dataset traversal, or image-label pairing.
+
+`YoloDetectionAnnotation` and `YoloLabelValidationResult` are frozen and
+slotted. Annotations preserve source order and physical one-based line
+numbers. Errors preserve source-line order and YOLO field order. Valid
+annotations remain available when another line is invalid, and an empty label
+file is valid. Training and inference remain unimplemented.
 
 ### Image metadata utilities
 
@@ -405,6 +426,9 @@ retain those lowercase keys. Text and Markdown uppercase them for display.
 - Duplicate detection is byte-exact; visually similar, resized, recompressed,
   re-encoded, cropped, or metadata-modified images are not detected unless
   their complete bytes match.
+- There is no dataset-level image-label pairing, missing-label or orphan-label
+  detection, or class-name mapping.
+- Segmentation and pose annotations are not supported.
 - There is no model-training, inference, video, or live-camera pipeline.
 - Runtime YAML configuration is not present in the tracked repository.
 
