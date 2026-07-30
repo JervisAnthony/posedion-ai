@@ -10,6 +10,7 @@ exploratory entries are not delivery commitments and have no assigned dates.
 - Image loading with OpenCV
 - Image metadata extraction
 - Image validation with structured results
+- Strict parsing and validation of individual YOLO detection-label files
 - Supported-image dataset discovery
 - Optional recursive discovery in the internal loader API
 - Optional recursive dataset scanning through the `--recursive` CLI flag
@@ -50,6 +51,8 @@ exploratory entries are not delivery commitments and have no assigned dates.
 
 ### Planned
 
+- Dataset-level YOLO image-label pairing, missing-label and orphan-label
+  diagnostics, and annotation statistics
 - Model-training and inference capabilities
 
 ### Exploratory

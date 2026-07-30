@@ -31,6 +31,8 @@ work.
   and file size.
 - Validates file existence, supported extensions, decodability, and
   independently configurable minimum dimensions, defaulting to 32 pixels.
+- Parses and strictly validates individual UTF-8 YOLO detection-label files
+  with deterministic, line-numbered errors.
 - Resizes and pads images while preserving aspect ratio.
 - Analyzes valid and invalid image counts, width and height statistics, valid
   image bytes, normalized extension counts, and decoded valid-image channel
@@ -104,6 +106,31 @@ python -m poseidon_ai.nautilus_vision.dataset_summary path/to/dataset
 Scanning is top-level only by default. Use `--recursive` to include supported
 images in nested directories. Full syntax and behavior are covered in the
 [dataset-summary CLI guide](docs/dataset-summary-cli.md).
+
+## YOLO label validation
+
+Each nonblank line in a YOLO detection label uses:
+
+```text
+class_id x_center y_center width height
+```
+
+Class identifiers must be non-negative integers. Center coordinates use the
+inclusive range `[0, 1]`; widths and heights use `(0, 1]`. Empty label files
+are valid and represent no annotations. Parsing reports deterministic errors
+with physical source line numbers.
+
+```python
+from poseidon_ai.nautilus_vision.yolo_label import (
+    validate_yolo_label,
+)
+
+result = validate_yolo_label("labels/example.txt")
+```
+
+This is a library-level single-file validator; it does not pair labels with
+images or provide class maps, training, inference, report integration, or a
+label CLI. See [YOLO label validation](docs/yolo-label-validation.md).
 
 ## Dataset-summary CLI
 
@@ -413,7 +440,7 @@ python -m pytest tests/test_dataset_summary.py -v
 GitHub Actions runs the complete test suite on Ubuntu and Windows with
 Python 3.13.
 
-The suite contained 173 passing tests when this documentation was verified.
+The suite contained 217 passing tests when this documentation was verified.
 
 ## Project structure
 
@@ -422,7 +449,8 @@ posedion-ai/
 ├── docs/
 │   ├── architecture.md
 │   ├── dataset-summary-cli.md
-│   └── roadmap.md
+│   ├── roadmap.md
+│   └── yolo-label-validation.md
 ├── scripts/
 │   └── create_sample_dataset.py
 ├── src/poseidon_ai/
@@ -433,7 +461,8 @@ posedion-ai/
 │   │   ├── dataset_statistics.py
 │   │   ├── dataset_summary.py
 │   │   ├── image_hash.py
-│   │   └── image_validator.py
+│   │   ├── image_validator.py
+│   │   └── yolo_label.py
 │   └── utils/
 └── tests/
 ```
