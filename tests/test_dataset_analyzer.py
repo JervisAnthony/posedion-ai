@@ -37,6 +37,9 @@ def test_analyze_empty_dataset(tmp_path: Path) -> None:
     assert stats.invalid_images == 0
     assert stats.extension_counts == {}
     assert stats.channel_counts == {}
+    assert stats.min_pixel_count == 0
+    assert stats.max_pixel_count == 0
+    assert stats.average_pixel_count == 0.0
 
 def test_analyze_single_valid_image(
     tmp_path: Path,
@@ -65,6 +68,10 @@ def test_analyze_single_valid_image(
     assert stats.max_height == 100
     assert stats.average_height == 100
 
+    assert stats.min_pixel_count == 10_000
+    assert stats.max_pixel_count == 10_000
+    assert stats.average_pixel_count == 10_000
+
     assert stats.total_size_bytes > 0
 
 def test_analyze_mixed_valid_and_invalid_images(
@@ -88,6 +95,9 @@ def test_analyze_mixed_valid_and_invalid_images(
     assert sum(stats.channel_counts.values()) == stats.valid_images
     assert sum(stats.extension_counts.values()) == stats.total_images
 
+    assert stats.min_pixel_count == 10_000
+    assert stats.max_pixel_count == 10_000
+    assert stats.average_pixel_count == 10_000
     assert stats.total_size_bytes > 0
 
 def test_analyze_ignores_unsupported_files(
@@ -168,6 +178,76 @@ def test_analyze_recursive_images_contribute_channel_counts(
 
     assert stats.channel_counts == {3: 1}
     assert sum(stats.channel_counts.values()) == stats.valid_images
+    assert stats.min_pixel_count == 10_000
+    assert stats.max_pixel_count == 10_000
+    assert stats.average_pixel_count == 10_000
+
+
+def test_analyze_uses_actual_per_image_pixel_areas(
+    tmp_path: Path,
+) -> None:
+    """Calculate extrema from each image area, not dimension extrema."""
+
+    create_test_image(
+        tmp_path / "wide.png",
+        width=100,
+        height=40,
+    )
+    create_test_image(
+        tmp_path / "tall.png",
+        width=50,
+        height=200,
+    )
+
+    stats = analyze_dataset(tmp_path)
+
+    assert stats.min_width == 50
+    assert stats.max_width == 100
+    assert stats.min_height == 40
+    assert stats.max_height == 200
+    assert stats.min_pixel_count == 4_000
+    assert stats.max_pixel_count == 10_000
+    assert stats.average_pixel_count == 7_000
+    assert (
+        stats.min_pixel_count
+        <= stats.average_pixel_count
+        <= stats.max_pixel_count
+    )
+    assert stats.channel_counts == {3: 2}
+    assert stats.valid_images == 2
+
+
+def test_analyze_requests_metadata_once_per_valid_image(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Do not request metadata again for resolution statistics."""
+
+    image_paths = [
+        tmp_path / "first.png",
+        tmp_path / "second.png",
+    ]
+    for image_path in image_paths:
+        create_test_image(image_path)
+
+    metadata_calls: list[Path] = []
+
+    def tracked_metadata(image_path: Path) -> dict:
+        metadata_calls.append(image_path)
+        return get_image_metadata(image_path)
+
+    monkeypatch.setattr(
+        dataset_analyzer,
+        "get_image_metadata",
+        tracked_metadata,
+    )
+
+    stats = analyze_dataset(tmp_path)
+
+    assert metadata_calls == image_paths
+    assert stats.min_pixel_count == 10_000
+    assert stats.max_pixel_count == 10_000
+    assert stats.average_pixel_count == 10_000
 
 
 def test_analyze_counts_mixed_supported_extensions(
@@ -232,6 +312,9 @@ def test_analyze_dataset_captures_invalid_image_diagnostics(
     assert stats.total_images == 1
     assert stats.valid_images == 0
     assert stats.invalid_images == 1
+    assert stats.min_pixel_count == 0
+    assert stats.max_pixel_count == 0
+    assert stats.average_pixel_count == 0.0
 
     assert len(stats.invalid_image_diagnostics) == 1
 
@@ -263,6 +346,9 @@ def test_analyze_dataset_preserves_multiple_validation_errors(
 
     assert stats.invalid_images == 1
     assert stats.channel_counts == {}
+    assert stats.min_pixel_count == 0
+    assert stats.max_pixel_count == 0
+    assert stats.average_pixel_count == 0.0
     assert len(stats.invalid_image_diagnostics) == 1
 
     diagnostic = stats.invalid_image_diagnostics[0]
@@ -291,6 +377,9 @@ def test_analyze_dataset_keeps_default_validation_thresholds(
     assert stats.valid_images == 0
     assert stats.invalid_images == 1
     assert stats.channel_counts == {}
+    assert stats.min_pixel_count == 0
+    assert stats.max_pixel_count == 0
+    assert stats.average_pixel_count == 0.0
     assert stats.invalid_image_diagnostics[0].errors == (
         "Width 20px is below minimum 32px.",
         "Height 20px is below minimum 32px.",
@@ -319,6 +408,9 @@ def test_analyze_dataset_accepts_lower_validation_thresholds(
     assert stats.invalid_images == 0
     assert stats.channel_counts == {3: 1}
     assert sum(stats.channel_counts.values()) == stats.valid_images
+    assert stats.min_pixel_count == 400
+    assert stats.max_pixel_count == 400
+    assert stats.average_pixel_count == 400
     assert stats.invalid_image_diagnostics == []
 
 
@@ -339,6 +431,9 @@ def test_analyze_dataset_applies_custom_width_independently(
     assert stats.valid_images == 0
     assert stats.invalid_images == 1
     assert stats.channel_counts == {}
+    assert stats.min_pixel_count == 0
+    assert stats.max_pixel_count == 0
+    assert stats.average_pixel_count == 0.0
     assert stats.invalid_image_diagnostics[0].image_path == image_path
     assert stats.invalid_image_diagnostics[0].errors == (
         "Width 50px is below minimum 100px.",

@@ -67,6 +67,28 @@ def format_dataset_markdown(
     else:
         image_channels = ["No valid image channel data found."]
 
+    if stats.valid_images:
+        image_resolution = [
+            "| Metric | Pixels | Megapixels |",
+            "|--------|-------:|-----------:|",
+            (
+                f"| Minimum | {stats.min_pixel_count:,} | "
+                f"{stats.min_pixel_count / 1_000_000:.2f} |"
+            ),
+            (
+                f"| Maximum | {stats.max_pixel_count:,} | "
+                f"{stats.max_pixel_count / 1_000_000:.2f} |"
+            ),
+            (
+                f"| Average | {stats.average_pixel_count:,.2f} | "
+                f"{stats.average_pixel_count / 1_000_000:.2f} |"
+            ),
+        ]
+    else:
+        image_resolution = [
+            "No valid image resolution data found."
+        ]
+
     if stats.invalid_image_diagnostics:
         invalid_image_diagnostics = []
         for diagnostic in sorted(
@@ -113,6 +135,10 @@ def format_dataset_markdown(
         "## Image Channels",
         "",
         *image_channels,
+        "",
+        "## Image Resolution",
+        "",
+        *image_resolution,
         "",
         "## Invalid Image Diagnostics",
         "",

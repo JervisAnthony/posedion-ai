@@ -47,6 +47,9 @@ def create_statistics() -> DatasetStatistics:
         min_height=480,
         max_height=720,
         average_height=600.0,
+        min_pixel_count=307_200,
+        max_pixel_count=2_073_600,
+        average_pixel_count=1_190_400.0,
         total_size_bytes=2048,
         extension_counts={
             "webp": 1,
@@ -121,6 +124,18 @@ def test_format_dataset_summary_json() -> None:
         "10": 1,
     }
     assert list(payload["channel_counts"]) == ["1", "2", "10"]
+    assert payload["resolution_statistics"] == {
+        "minimum_pixels": 307_200,
+        "maximum_pixels": 2_073_600,
+        "average_pixels": 1_190_400.0,
+        "minimum_megapixels": 0.3072,
+        "maximum_megapixels": 2.0736,
+        "average_megapixels": 1.1904,
+    }
+    assert all(
+        isinstance(value, int | float)
+        for value in payload["resolution_statistics"].values()
+    )
     assert payload["invalid_image_diagnostics"] == [
         {
             "image_path": "data/a-corrupt.jpg",
@@ -138,6 +153,7 @@ def test_format_dataset_summary_json() -> None:
         "invalid_images",
         "extension_counts",
         "channel_counts",
+        "resolution_statistics",
         "invalid_image_diagnostics",
         "width",
         "height",
@@ -161,6 +177,9 @@ def test_format_dataset_summary_json_with_no_images() -> None:
     stats.min_height = 0
     stats.max_height = 0
     stats.average_height = 0.0
+    stats.min_pixel_count = 0
+    stats.max_pixel_count = 0
+    stats.average_pixel_count = 0.0
     stats.total_size_bytes = 0
     stats.invalid_image_diagnostics = []
 
@@ -171,6 +190,14 @@ def test_format_dataset_summary_json_with_no_images() -> None:
 
     assert json.loads(result)["extension_counts"] == {}
     assert json.loads(result)["channel_counts"] == {}
+    assert json.loads(result)["resolution_statistics"] == {
+        "minimum_pixels": 0,
+        "maximum_pixels": 0,
+        "average_pixels": 0.0,
+        "minimum_megapixels": 0.0,
+        "maximum_megapixels": 0.0,
+        "average_megapixels": 0.0,
+    }
     assert json.loads(result)["invalid_image_diagnostics"] == []
 
 
@@ -245,7 +272,17 @@ def test_main_prints_text_summary(
     assert captured.out.index("2 channels") < captured.out.index(
         "10 channels"
     )
+    assert "Image Resolution" in captured.out
+    assert "Minimum Pixels    : 307,200" in captured.out
+    assert "Maximum Pixels    : 2,073,600" in captured.out
+    assert "Average Pixels    : 1,190,400.00" in captured.out
+    assert "Minimum MP        : 0.31" in captured.out
+    assert "Maximum MP        : 2.07" in captured.out
+    assert "Average MP        : 1.19" in captured.out
     assert captured.out.index("Image Channels") < captured.out.index(
+        "Image Resolution"
+    )
+    assert captured.out.index("Image Resolution") < captured.out.index(
         "Invalid Image Diagnostics"
     )
     assert "Invalid Image Diagnostics" in captured.out
@@ -288,6 +325,26 @@ def test_text_summary_with_no_invalid_images() -> None:
     )
 
     assert "No invalid images found." in result
+
+
+def test_text_summary_with_no_valid_images() -> None:
+    """Render the explicit empty resolution state."""
+
+    stats = create_statistics()
+    stats.valid_images = 0
+    stats.channel_counts = {}
+    stats.min_pixel_count = 0
+    stats.max_pixel_count = 0
+    stats.average_pixel_count = 0.0
+
+    result = format_dataset_summary(
+        Path("data/sample_dataset"),
+        stats,
+    )
+
+    assert "No valid image channel data found." in result
+    assert "No valid image resolution data found." in result
+    assert "Invalid Image Diagnostics" in result
 
 
 def test_main_prints_empty_image_formats(
@@ -427,6 +484,7 @@ def test_main_prints_csv_summary(
         "invalid_images",
         "extension_counts",
         "channel_counts",
+        "resolution_statistics",
         "invalid_image_diagnostics",
         "min_width",
         "max_width",
@@ -444,6 +502,14 @@ def test_main_prints_csv_summary(
         "1",
         '{"jpeg": 2, "png": 1, "webp": 1}',
         '{"1": 1, "2": 1, "10": 1}',
+        (
+            '{"minimum_pixels": 307200, '
+            '"maximum_pixels": 2073600, '
+            '"average_pixels": 1190400.0, '
+            '"minimum_megapixels": 0.3072, '
+            '"maximum_megapixels": 2.0736, '
+            '"average_megapixels": 1.1904}'
+        ),
         (
             '[{"image_path": "data/a-corrupt.jpg", '
             '"errors": ["Image could not be decoded."]}]'
@@ -570,6 +636,11 @@ def test_main_prints_markdown_summary(
     assert "## Overview" in captured.out
     assert "| Total Images | 4 |" in captured.out
     assert "| JPEG | 2 |" in captured.out
+    assert "## Image Channels" in captured.out
+    assert "## Image Resolution" in captured.out
+    assert "| Minimum | 307,200 | 0.31 |" in captured.out
+    assert "| Maximum | 2,073,600 | 2.07 |" in captured.out
+    assert "| Average | 1,190,400.00 | 1.19 |" in captured.out
     assert "## Invalid Image Diagnostics" in captured.out
     assert "### `data/a-corrupt.jpg`" in captured.out
     assert "| Average | 906.67 |" in captured.out
@@ -892,6 +963,14 @@ def test_main_default_scanning_excludes_nested_images(
     assert payload["valid_images"] == 1
     assert payload["extension_counts"] == {"jpeg": 1}
     assert payload["channel_counts"] == {"3": 1}
+    assert payload["resolution_statistics"] == {
+        "minimum_pixels": 10_000,
+        "maximum_pixels": 10_000,
+        "average_pixels": 10_000.0,
+        "minimum_megapixels": 0.01,
+        "maximum_megapixels": 0.01,
+        "average_megapixels": 0.01,
+    }
     assert captured.err == ""
 
 
@@ -958,6 +1037,14 @@ def test_main_recursive_scanning_includes_nested_valid_images(
         "maximum": 100,
         "average": 80.0,
     }
+    assert payload["resolution_statistics"] == {
+        "minimum_pixels": 8_400,
+        "maximum_pixels": 10_000,
+        "average_pixels": 28_000 / 3,
+        "minimum_megapixels": 0.0084,
+        "maximum_megapixels": 0.01,
+        "average_megapixels": 0.009333,
+    }
     assert payload["total_size_bytes"] > 0
     assert captured.err == ""
 
@@ -995,6 +1082,14 @@ def test_main_recursive_scanning_reports_nested_invalid_image(
     assert payload["invalid_images"] == 1
     assert payload["extension_counts"] == {"jpeg": 1}
     assert payload["channel_counts"] == {}
+    assert payload["resolution_statistics"] == {
+        "minimum_pixels": 0,
+        "maximum_pixels": 0,
+        "average_pixels": 0.0,
+        "minimum_megapixels": 0.0,
+        "maximum_megapixels": 0.0,
+        "average_megapixels": 0.0,
+    }
     assert payload["invalid_image_diagnostics"] == [
         {
             "image_path": invalid_image.as_posix(),
@@ -1086,6 +1181,14 @@ def test_main_recursive_scanning_writes_output_file(
     assert payload["extension_counts"] == {
         "jpeg": 1,
         "png": 1,
+    }
+    assert payload["resolution_statistics"] == {
+        "minimum_pixels": 10_000,
+        "maximum_pixels": 10_000,
+        "average_pixels": 10_000.0,
+        "minimum_megapixels": 0.01,
+        "maximum_megapixels": 0.01,
+        "average_megapixels": 0.01,
     }
     assert captured.out == ""
     assert captured.err == ""
@@ -1231,6 +1334,9 @@ def test_main_default_thresholds_reject_small_image(
     assert payload["valid_images"] == 0
     assert payload["invalid_images"] == 1
     assert payload["channel_counts"] == {}
+    assert payload["resolution_statistics"]["minimum_pixels"] == 0
+    assert payload["resolution_statistics"]["maximum_pixels"] == 0
+    assert payload["resolution_statistics"]["average_pixels"] == 0.0
     assert payload["invalid_image_diagnostics"][0]["errors"] == [
         "Width 20px is below minimum 32px.",
         "Height 20px is below minimum 32px.",
@@ -1273,6 +1379,14 @@ def test_main_lower_thresholds_accept_small_image(
     assert payload["valid_images"] == 1
     assert payload["invalid_images"] == 0
     assert payload["channel_counts"] == {"3": 1}
+    assert payload["resolution_statistics"] == {
+        "minimum_pixels": 400,
+        "maximum_pixels": 400,
+        "average_pixels": 400.0,
+        "minimum_megapixels": 0.0004,
+        "maximum_megapixels": 0.0004,
+        "average_megapixels": 0.0004,
+    }
     assert payload["invalid_image_diagnostics"] == []
     assert captured.err == ""
 
@@ -1312,6 +1426,9 @@ def test_main_higher_width_produces_invalid_diagnostic(
     assert payload["valid_images"] == 0
     assert payload["invalid_images"] == 1
     assert payload["channel_counts"] == {}
+    assert payload["resolution_statistics"]["minimum_pixels"] == 0
+    assert payload["resolution_statistics"]["maximum_pixels"] == 0
+    assert payload["resolution_statistics"]["average_pixels"] == 0.0
     assert payload["invalid_image_diagnostics"][0]["errors"] == [
         "Width 50px is below minimum 100px.",
     ]
@@ -1357,6 +1474,9 @@ def test_main_custom_thresholds_apply_recursively(
     assert payload["valid_images"] == 1
     assert payload["invalid_images"] == 0
     assert payload["channel_counts"] == {"3": 1}
+    assert payload["resolution_statistics"]["minimum_pixels"] == 400
+    assert payload["resolution_statistics"]["maximum_pixels"] == 400
+    assert payload["resolution_statistics"]["average_pixels"] == 400.0
     assert captured.err == ""
 
 
@@ -1397,6 +1517,9 @@ def test_main_custom_thresholds_write_output_file(
 
     assert payload["valid_images"] == 1
     assert payload["invalid_images"] == 0
+    assert payload["resolution_statistics"]["minimum_pixels"] == 400
+    assert payload["resolution_statistics"]["maximum_pixels"] == 400
+    assert payload["resolution_statistics"]["average_pixels"] == 400.0
     assert captured.out == ""
     assert captured.err == ""
 

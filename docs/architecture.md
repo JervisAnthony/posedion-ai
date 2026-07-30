@@ -72,14 +72,16 @@ cannot load the requested image.
 It counts every supported candidate, normalizes and counts its extension,
 records invalid-image diagnostics, and collects size and dimension data for
 valid images. It also aggregates the decoded channel count already present in
-each valid image's metadata, without adding another image decode. It computes
-minimum, maximum, and arithmetic mean dimensions when at least one image is
-valid. Its keyword-only minimum width and height default to the validator
-constants and are forwarded directly to `validate_image`.
+each valid image's metadata. From the same metadata result, it calculates
+each valid image's actual `width * height` pixel area and aggregates minimum,
+maximum, and arithmetic mean pixel counts. Neither statistic adds another
+metadata request or image decode. Its keyword-only minimum width and height
+default to the validator constants and are forwarded directly to
+`validate_image`.
 
 `total_size_bytes` is the sum of valid-image file sizes. Invalid candidates
 still contribute to `total_images` and `extension_counts`, but not to channel
-counts.
+or resolution statistics.
 
 ### `DatasetStatistics`
 
@@ -87,8 +89,10 @@ counts.
 from analysis to presentation. It contains dataset identity, valid and
 invalid counts, dimensions, valid-image bytes, normalized extension counts,
 numeric decoded channel counts for valid images, and invalid-image
-diagnostics. Collection fields use independent default factories. The model
-keeps channel keys as integers and does not attach inferred colour semantics.
+diagnostics. It also retains raw minimum, maximum, and average valid-image
+pixel counts. Megapixel values are not duplicated in the model. Collection
+fields use independent default factories. The model keeps channel keys as
+integers and does not attach inferred colour semantics.
 
 ### `InvalidImageDiagnostic`
 
@@ -101,26 +105,35 @@ and all captured errors without reading or validating the image again.
 
 `nautilus_vision/dataset_summary.py` contains the human-readable text
 formatter and JSON formatter. Text uses uppercase image-format labels and a
-numeric Image Channels section, followed by diagnostics grouped under
-portable paths and a formatted size. JSON preserves normalized lowercase
-extension keys, converts numerically ordered channel keys to strings, includes
-raw and formatted sizes, and represents diagnostics as explicit dictionaries
-with error arrays.
+numeric Image Channels section, followed by Image Resolution and diagnostics
+grouped under portable paths and a formatted size. JSON preserves normalized
+lowercase extension keys, converts numerically ordered channel keys to
+strings, includes structured pixel and megapixel statistics plus raw and
+formatted sizes, and represents diagnostics as explicit dictionaries with
+error arrays.
+
+### Shared dataset serialization
+
+`nautilus_vision/dataset_serialization.py` provides the shared deterministic
+structures used by JSON and CSV. Resolution serialization retains raw pixel
+counts and derives decimal megapixels using `pixel_count / 1_000_000`, rounded
+to six decimal places. It does not mutate `DatasetStatistics`.
 
 ### CSV formatter
 
 `nautilus_vision/dataset_csv.py` uses `csv.writer` and `io.StringIO`. It has a
-stable fourteen-column schema. The `extension_counts` and `channel_counts`
-cells are JSON objects, and `invalid_image_diagnostics` is a JSON array in one
-cell. They are serialized with `json.dumps`, so formats do not create dynamic
-columns and commas and quotation marks are correctly escaped.
+stable fifteen-column schema. The `extension_counts`, `channel_counts`, and
+`resolution_statistics` cells are JSON objects, and
+`invalid_image_diagnostics` is a JSON array in one cell. They are serialized
+with `json.dumps`, so formats do not create dynamic columns and commas and
+quotation marks are correctly escaped.
 
 ### Markdown formatter
 
 `nautilus_vision/dataset_markdown.py` renders Overview, Image Formats, Image
-Channels, Invalid Image Diagnostics, Width, Height, and Dataset Size sections.
-Diagnostic paths use portable separators and safe code-span delimiters, and
-error bullets escape Markdown punctuation.
+Channels, Image Resolution, Invalid Image Diagnostics, Width, Height, and
+Dataset Size sections. Diagnostic paths use portable separators and safe
+code-span delimiters, and error bullets escape Markdown punctuation.
 
 ### Formatter registry
 
@@ -169,7 +182,9 @@ and text alignment—out of the analysis path and allow the CLI registry to
 select a format consistently. Diagnostic reporting reads the structured
 analysis result; it never performs a second validation pass. Channel
 statistics likewise use metadata already collected for valid images and do
-not trigger another decode.
+not trigger another decode. Resolution statistics use that same metadata
+result and derive presentation-only megapixels from the model's raw pixel
+counts.
 
 ## Analyzer invariants
 
@@ -183,14 +198,24 @@ sum(channel_counts.values()) == valid_images
 len(invalid_image_diagnostics) == invalid_images
 ```
 
+When valid images exist, resolution statistics also satisfy:
+
+```text
+min_pixel_count <= average_pixel_count <= max_pixel_count
+average_pixel_count
+    == sum(width * height for every valid image) / valid_images
+```
+
 These invariants are analyzer behavior, not validation enforced by the
 `DatasetStatistics` dataclass. Callers can manually construct a statistics
 object whose fields do not satisfy them.
 
 When no valid images exist, channel counts are empty, all width and height
-statistics remain zero, and `total_size_bytes` is zero. Channel values
-describe decoded array channel counts from the current metadata pipeline, not
-inferred colour modes.
+and pixel-count statistics remain zero, and `total_size_bytes` is zero.
+Minimum and maximum pixel counts come from actual per-image areas; the
+analyzer never combines independent width and height extrema to fabricate an
+area. Channel values describe decoded array channel counts from the current
+metadata pipeline, not inferred colour modes.
 
 ## Extension normalization
 

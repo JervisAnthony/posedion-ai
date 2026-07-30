@@ -23,6 +23,9 @@ def create_statistics() -> DatasetStatistics:
         min_height=480,
         max_height=720,
         average_height=600.0,
+        min_pixel_count=307_200,
+        max_pixel_count=2_073_600,
+        average_pixel_count=1_190_400.0,
         total_size_bytes=2048,
         extension_counts={
             "webp": 1,
@@ -57,6 +60,7 @@ def test_format_dataset_markdown() -> None:
     assert "## Overview" in result
     assert "## Image Formats" in result
     assert "## Image Channels" in result
+    assert "## Image Resolution" in result
     assert "## Invalid Image Diagnostics" in result
     assert "## Width" in result
     assert "## Height" in result
@@ -78,8 +82,15 @@ def test_format_dataset_markdown() -> None:
     assert result.index("| 1 | 1 |") < result.index("| 2 | 1 |")
     assert result.index("| 2 | 1 |") < result.index("| 10 | 1 |")
     assert result.index("## Image Channels") < result.index(
+        "## Image Resolution"
+    )
+    assert result.index("## Image Resolution") < result.index(
         "## Invalid Image Diagnostics"
     )
+    assert "| Metric | Pixels | Megapixels |" in result
+    assert "| Minimum | 307,200 | 0.31 |" in result
+    assert "| Maximum | 2,073,600 | 2.07 |" in result
+    assert "| Average | 1,190,400.00 | 1.19 |" in result
     assert "### `data/a-corrupt.jpg`" in result
     assert "- Image could not be decoded." in result
 
@@ -109,6 +120,9 @@ def test_format_dataset_markdown_with_no_images() -> None:
     stats.min_height = 0
     stats.max_height = 0
     stats.average_height = 0.0
+    stats.min_pixel_count = 0
+    stats.max_pixel_count = 0
+    stats.average_pixel_count = 0.0
     stats.total_size_bytes = 0
     stats.invalid_image_diagnostics = []
 
@@ -120,6 +134,7 @@ def test_format_dataset_markdown_with_no_images() -> None:
     assert "## Image Formats" in result
     assert "No supported image files found." in result
     assert "No valid image channel data found." in result
+    assert "No valid image resolution data found." in result
     assert "No invalid images found." in result
 
 

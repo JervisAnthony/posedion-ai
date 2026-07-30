@@ -54,6 +54,7 @@ def analyze_dataset(
 
     widths: list[int] = []
     heights: list[int] = []
+    pixel_counts: list[int] = []
 
     for image_path in image_paths:
         stats.total_images += 1
@@ -97,6 +98,7 @@ def analyze_dataset(
 
         widths.append(metadata["width"])
         heights.append(metadata["height"])
+        pixel_counts.append(metadata["width"] * metadata["height"])
 
     if widths:
         stats.min_width = min(widths)
@@ -107,6 +109,13 @@ def analyze_dataset(
         stats.min_height = min(heights)
         stats.max_height = max(heights)
         stats.average_height = sum(heights) / len(heights)
+
+    if pixel_counts:
+        stats.min_pixel_count = min(pixel_counts)
+        stats.max_pixel_count = max(pixel_counts)
+        stats.average_pixel_count = (
+            sum(pixel_counts) / len(pixel_counts)
+        )
 
     stats.extension_counts = dict(sorted(stats.extension_counts.items()))
     stats.channel_counts = dict(sorted(stats.channel_counts.items()))
