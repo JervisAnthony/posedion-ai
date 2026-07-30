@@ -66,6 +66,20 @@ def serialize_aspect_ratio_statistics(
     }
 
 
+def serialize_file_size_statistics(
+    min_file_size_bytes: int,
+    max_file_size_bytes: int,
+    average_file_size_bytes: float,
+) -> dict[str, int | float]:
+    """Return valid-image file-size statistics as numeric bytes."""
+
+    return {
+        "minimum_bytes": min_file_size_bytes,
+        "maximum_bytes": max_file_size_bytes,
+        "average_bytes": round(average_file_size_bytes, 2),
+    }
+
+
 def serialize_duplicate_images(
     duplicate_groups: Sequence[DuplicateImageGroup],
 ) -> dict[str, object]:

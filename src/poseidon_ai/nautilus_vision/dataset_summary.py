@@ -23,6 +23,7 @@ from poseidon_ai.nautilus_vision.dataset_serialization import (
     serialize_aspect_ratio_statistics,
     serialize_channel_counts,
     serialize_duplicate_images,
+    serialize_file_size_statistics,
     serialize_invalid_image_diagnostics,
     serialize_resolution_statistics,
 )
@@ -93,6 +94,16 @@ def format_dataset_summary(
         image_aspect_ratios = (
             "No valid image aspect ratio data found."
         )
+
+    if stats.valid_images:
+        image_file_sizes = (
+            f"Minimum Bytes      : {stats.min_file_size_bytes:,}\n"
+            f"Maximum Bytes      : {stats.max_file_size_bytes:,}\n"
+            "Average Bytes      : "
+            f"{stats.average_file_size_bytes:,.2f}"
+        )
+    else:
+        image_file_sizes = "No valid image file size data found."
 
     duplicate_data = serialize_duplicate_images(
         stats.duplicate_image_groups
@@ -169,6 +180,10 @@ def format_dataset_summary(
         "-------------------\n"
         f"{image_aspect_ratios}\n"
         "\n"
+        "Image File Sizes\n"
+        "----------------\n"
+        f"{image_file_sizes}\n"
+        "\n"
         "Exact Duplicate Images\n"
         "----------------------\n"
         f"{duplicate_images}\n"
@@ -222,6 +237,11 @@ def format_dataset_summary_json(
             stats.max_aspect_ratio,
             stats.average_aspect_ratio,
             stats.orientation_counts,
+        ),
+        "file_size_statistics": serialize_file_size_statistics(
+            stats.min_file_size_bytes,
+            stats.max_file_size_bytes,
+            stats.average_file_size_bytes,
         ),
         "duplicate_images": serialize_duplicate_images(
             stats.duplicate_image_groups

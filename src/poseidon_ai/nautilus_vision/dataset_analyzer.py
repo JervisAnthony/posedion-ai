@@ -100,6 +100,7 @@ def _analyze_dataset(
     heights: list[int] = []
     pixel_counts: list[int] = []
     aspect_ratios: list[float] = []
+    file_sizes: list[int] = []
     orientation_counts = {
         "landscape": 0,
         "portrait": 0,
@@ -153,9 +154,11 @@ def _analyze_dataset(
         metadata = get_image_metadata(image_path)
 
         stats.valid_images += 1
-        stats.total_size_bytes += metadata["size_bytes"]
+        file_size_bytes = metadata["size_bytes"]
+        stats.total_size_bytes += file_size_bytes
+        file_sizes.append(file_size_bytes)
         size_to_paths.setdefault(
-            metadata["size_bytes"],
+            file_size_bytes,
             [],
         ).append(image_path)
 
@@ -189,7 +192,7 @@ def _analyze_dataset(
                     width=width,
                     height=height,
                     channels=channels,
-                    size_bytes=metadata["size_bytes"],
+                    size_bytes=file_size_bytes,
                     pixel_count=pixel_count,
                     megapixels=round(pixel_count / 1_000_000, 6),
                 )
@@ -217,6 +220,13 @@ def _analyze_dataset(
         stats.max_aspect_ratio = max(aspect_ratios)
         stats.average_aspect_ratio = (
             sum(aspect_ratios) / len(aspect_ratios)
+        )
+
+    if file_sizes:
+        stats.min_file_size_bytes = min(file_sizes)
+        stats.max_file_size_bytes = max(file_sizes)
+        stats.average_file_size_bytes = (
+            sum(file_sizes) / len(file_sizes)
         )
 
     stats.orientation_counts = orientation_counts

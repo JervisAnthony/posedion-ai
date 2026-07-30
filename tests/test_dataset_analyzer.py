@@ -1,3 +1,5 @@
+import inspect
+
 import cv2
 import numpy as np
 import pytest
@@ -1176,3 +1178,188 @@ def test_manifest_analysis_preserves_schema_with_aspect_statistics(
     assert not hasattr(entry, "aspect_ratio")
     assert not hasattr(entry, "orientation")
     assert not hasattr(entry, "orientation_category")
+
+
+def test_analyze_single_valid_image_file_size_statistics(
+    tmp_path: Path,
+) -> None:
+    """Use one valid image's metadata size for every size statistic."""
+
+    image_path = tmp_path / "image.png"
+    create_test_image(image_path)
+    expected_size = image_path.stat().st_size
+
+    stats = analyze_dataset(tmp_path)
+
+    assert stats.min_file_size_bytes == expected_size
+    assert stats.max_file_size_bytes == expected_size
+    assert stats.average_file_size_bytes == expected_size
+    assert stats.total_size_bytes == expected_size
+    assert (
+        stats.average_file_size_bytes
+        == stats.total_size_bytes / stats.valid_images
+    )
+
+
+def test_analyze_aggregates_controlled_file_sizes_once(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Average metadata sizes and exclude invalid supported images."""
+
+    first_path = tmp_path / "first.png"
+    second_path = tmp_path / "second.png"
+    create_test_image(first_path)
+    create_test_image(second_path, width=120, height=100)
+    (tmp_path / "broken.jpg").write_bytes(b"not an image")
+    controlled_sizes = {
+        "first.png": 1_025,
+        "second.png": 4_096,
+    }
+    metadata_calls: list[Path] = []
+
+    def controlled_metadata(image_path: Path) -> dict:
+        metadata_calls.append(image_path)
+        metadata = get_image_metadata(image_path)
+        metadata["size_bytes"] = controlled_sizes[image_path.name]
+        return metadata
+
+    monkeypatch.setattr(
+        dataset_analyzer,
+        "get_image_metadata",
+        controlled_metadata,
+    )
+
+    stats = analyze_dataset(tmp_path)
+
+    assert metadata_calls == [first_path, second_path]
+    assert stats.valid_images == 2
+    assert stats.invalid_images == 1
+    assert stats.min_file_size_bytes == 1_025
+    assert stats.max_file_size_bytes == 4_096
+    assert stats.average_file_size_bytes == 2_560.5
+    assert stats.total_size_bytes == 5_121
+    assert (
+        stats.average_file_size_bytes
+        == stats.total_size_bytes / stats.valid_images
+    )
+
+
+def test_analyze_empty_and_invalid_only_file_size_statistics(
+    tmp_path: Path,
+) -> None:
+    """Keep every file-size statistic at zero without valid images."""
+
+    empty_stats = analyze_dataset(tmp_path)
+    (tmp_path / "broken.jpg").write_bytes(b"not an image")
+    invalid_stats = analyze_dataset(tmp_path)
+
+    for stats in (empty_stats, invalid_stats):
+        assert stats.min_file_size_bytes == 0
+        assert stats.max_file_size_bytes == 0
+        assert stats.average_file_size_bytes == 0.0
+        assert stats.total_size_bytes == 0
+
+    assert invalid_stats.invalid_images == 1
+
+
+def test_analyze_recursive_threshold_file_size_eligibility(
+    tmp_path: Path,
+) -> None:
+    """Apply recursion and validation before collecting file sizes."""
+
+    nested_directory = tmp_path / "nested"
+    nested_directory.mkdir()
+    image_path = nested_directory / "small.png"
+    create_test_image(image_path, width=20, height=20)
+    expected_size = image_path.stat().st_size
+
+    top_level = analyze_dataset(
+        tmp_path,
+        min_width=10,
+        min_height=10,
+    )
+    recursive_default = analyze_dataset(tmp_path, recursive=True)
+    recursive_lowered = analyze_dataset(
+        tmp_path,
+        recursive=True,
+        min_width=10,
+        min_height=10,
+    )
+
+    assert top_level.total_size_bytes == 0
+    assert top_level.min_file_size_bytes == 0
+    assert recursive_default.total_size_bytes == 0
+    assert recursive_default.average_file_size_bytes == 0.0
+    assert recursive_lowered.valid_images == 1
+    assert recursive_lowered.total_size_bytes == expected_size
+    assert recursive_lowered.min_file_size_bytes == expected_size
+    assert recursive_lowered.max_file_size_bytes == expected_size
+    assert recursive_lowered.average_file_size_bytes == expected_size
+
+
+def test_analyze_counts_duplicate_file_sizes_individually(
+    tmp_path: Path,
+) -> None:
+    """Count every duplicate member and preserve duplicate grouping."""
+
+    source_path = tmp_path / "source.png"
+    copy_path = tmp_path / "copy.png"
+    unique_path = tmp_path / "unique.bmp"
+    create_test_image(source_path)
+    copyfile(source_path, copy_path)
+    create_test_image(unique_path, width=120, height=100)
+    file_sizes = [
+        source_path.stat().st_size,
+        copy_path.stat().st_size,
+        unique_path.stat().st_size,
+    ]
+
+    stats = analyze_dataset(tmp_path)
+
+    assert stats.valid_images == 3
+    assert stats.duplicate_group_count == 1
+    assert stats.duplicate_file_count == 2
+    assert stats.min_file_size_bytes == min(file_sizes)
+    assert stats.max_file_size_bytes == max(file_sizes)
+    assert stats.average_file_size_bytes == (
+        sum(file_sizes) / len(file_sizes)
+    )
+    assert stats.total_size_bytes == sum(file_sizes)
+
+
+def test_manifest_analysis_reuses_metadata_size_without_extra_stat(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Reuse one metadata size for aggregates, bucketing, and manifest."""
+
+    image_path = tmp_path / "image.png"
+    create_test_image(image_path)
+    metadata_calls: list[Path] = []
+
+    def controlled_metadata(path: Path) -> dict:
+        metadata_calls.append(path)
+        metadata = get_image_metadata(path)
+        metadata["size_bytes"] = 1_234
+        return metadata
+
+    monkeypatch.setattr(
+        dataset_analyzer,
+        "get_image_metadata",
+        controlled_metadata,
+    )
+
+    result = analyze_dataset_with_manifest(tmp_path)
+    analyzer_source = inspect.getsource(
+        dataset_analyzer._analyze_dataset
+    )
+
+    assert metadata_calls == [image_path]
+    assert result.statistics.total_size_bytes == 1_234
+    assert result.statistics.min_file_size_bytes == 1_234
+    assert result.statistics.max_file_size_bytes == 1_234
+    assert result.statistics.average_file_size_bytes == 1_234
+    assert result.manifest_entries[0].size_bytes == 1_234
+    assert ".stat(" not in analyzer_source
+    assert "os.stat" not in analyzer_source
