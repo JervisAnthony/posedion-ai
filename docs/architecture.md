@@ -38,6 +38,18 @@ flowchart LR
     S --> T[YoloLabelValidationResult]
 ```
 
+YOLO dataset analysis composes discovery and the single-file validator in a
+second independent library flow:
+
+```mermaid
+flowchart LR
+    U[Image directory + label directory] --> V[Supported-file discovery]
+    V --> W[Relative pairing-key grouping]
+    W --> X[Missing, orphan, and conflict classification]
+    X --> Y[Single-file YOLO label validation]
+    Y --> Z[Immutable YOLO dataset analysis result]
+```
+
 The same flow in words: the CLI accepts a dataset directory, the loader
 returns supported candidate paths, the analyzer validates each path and
 collects metadata for valid images. It hashes only same-size valid candidates
@@ -85,6 +97,33 @@ slotted. Annotations preserve source order and physical one-based line
 numbers. Errors preserve source-line order and YOLO field order. Valid
 annotations remain available when another line is invalid, and an empty label
 file is valid. Training and inference remain unimplemented.
+
+### YOLO dataset analyzer
+
+`nautilus_vision/yolo_dataset.py` owns library-level pairing and aggregation
+for explicit image and label roots. Supported-image discovery reuses
+`load_image_dataset(..., validate=False)` and therefore the existing
+case-insensitive supported-extension definition without decoding or
+validating image contents. Label discovery accepts case-insensitive `.txt`
+suffixes.
+
+Pairing keys are case-sensitive root-relative POSIX paths with only the final
+extension removed. Multiple images or labels under one key create an
+immutable conflict; the analyzer never selects one arbitrarily. Missing-label
+images, orphan labels, conflicts, and ordinary pairs are mutually exclusive
+classifications. Only uniquely paired labels are passed to
+`validate_yolo_label()`, exactly once each.
+
+Fully valid paired labels contribute to aggregate annotation and numeric
+per-class counts. Partial annotations retained by an invalid label result
+remain inspectable through its pair but are excluded from aggregates. Empty
+valid labels count as valid and empty while contributing zero annotations.
+All public dataset-analysis models are frozen and slotted, and all public
+collections use deterministic immutable tuples.
+
+This analyzer remains separate from `dataset_analyzer.py`. It does not change
+the dataset-summary CLI, any text, JSON, CSV, or Markdown report schema, or
+the JSONL image manifest.
 
 ### Image metadata utilities
 
@@ -426,11 +465,11 @@ retain those lowercase keys. Text and Markdown uppercase them for display.
 - Duplicate detection is byte-exact; visually similar, resized, recompressed,
   re-encoded, cropped, or metadata-modified images are not detected unless
   their complete bytes match.
-- There is no dataset-level image-label pairing, missing-label or orphan-label
-  detection, or class-name mapping.
-- Segmentation and pose annotations are not supported.
+- There is no class-name or dataset-YAML configuration and no split-level
+  training configuration.
+- Segmentation, pose, and oriented-box annotations are not supported.
+- There is no label-analysis CLI.
 - There is no model-training, inference, video, or live-camera pipeline.
-- Runtime YAML configuration is not present in the tracked repository.
 
 ## Planned architectural direction
 

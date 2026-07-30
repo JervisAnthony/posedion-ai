@@ -11,6 +11,8 @@ exploratory entries are not delivery commitments and have no assigned dates.
 - Image metadata extraction
 - Image validation with structured results
 - Strict parsing and validation of individual YOLO detection-label files
+- Dataset-level YOLO image-label pairing with missing-label, orphan-label,
+  pairing-conflict, and annotation-count diagnostics
 - Supported-image dataset discovery
 - Optional recursive discovery in the internal loader API
 - Optional recursive dataset scanning through the `--recursive` CLI flag
@@ -51,8 +53,9 @@ exploratory entries are not delivery commitments and have no assigned dates.
 
 ### Planned
 
-- Dataset-level YOLO image-label pairing, missing-label and orphan-label
-  diagnostics, and annotation statistics
+- Class-name and dataset-YAML configuration
+- Training split validation
+- Segmentation and pose annotation support
 - Model-training and inference capabilities
 
 ### Exploratory
