@@ -12,6 +12,10 @@ import numpy as np
 import pytest
 
 import poseidon_ai.nautilus_vision.dataset_summary as dataset_summary
+from poseidon_ai.nautilus_vision.dataset_manifest import (
+    DatasetAnalysisResult,
+    DatasetManifestEntry,
+)
 from poseidon_ai.nautilus_vision.dataset_statistics import (
     DatasetStatistics,
     DuplicateImageGroup,
@@ -1355,6 +1359,7 @@ def test_main_help_lists_recursive_option(
     assert "--recursive" in captured.out
     assert "--min-width PIXELS" in captured.out
     assert "--min-height PIXELS" in captured.out
+    assert "--manifest-output PATH" in captured.out
     assert captured.err == ""
 
 
@@ -1714,4 +1719,376 @@ def test_main_rejects_invalid_threshold_before_analysis(
     assert error.value.code == 2
     assert captured.out == ""
     assert "must be a positive integer" in captured.err
+    assert "Traceback" not in captured.err
+
+
+def test_main_without_manifest_uses_existing_analyzer(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Keep the aggregate-only CLI on the existing public analyzer API."""
+
+    analyzer_calls: list[Path] = []
+
+    def record_analysis(
+        dataset_path: Path,
+        *,
+        recursive: bool = False,
+        min_width: int = 32,
+        min_height: int = 32,
+    ) -> DatasetStatistics:
+        analyzer_calls.append(dataset_path)
+        return create_statistics()
+
+    def unexpected_manifest_analysis(*args, **kwargs):
+        raise AssertionError("manifest analyzer must not be called")
+
+    monkeypatch.setattr(
+        dataset_summary,
+        "analyze_dataset",
+        record_analysis,
+    )
+    monkeypatch.setattr(
+        dataset_summary,
+        "analyze_dataset_with_manifest",
+        unexpected_manifest_analysis,
+    )
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["dataset-summary", "data/sample_dataset"],
+    )
+
+    assert dataset_summary.main() == 0
+    assert analyzer_calls == [Path("data/sample_dataset")]
+    assert "Dataset Summary" in capsys.readouterr().out
+
+
+def test_main_with_manifest_uses_combined_analyzer(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Use one combined analysis when manifest output is requested."""
+
+    manifest_path = tmp_path / "manifest.jsonl"
+    analyzer_calls: list[tuple[bool, int, int]] = []
+
+    def record_manifest_analysis(
+        dataset_path: Path,
+        *,
+        recursive: bool = False,
+        min_width: int = 32,
+        min_height: int = 32,
+    ) -> DatasetAnalysisResult:
+        analyzer_calls.append((recursive, min_width, min_height))
+        return DatasetAnalysisResult(
+            statistics=create_statistics(),
+            manifest_entries=(
+                DatasetManifestEntry(
+                    path=Path("coral.jpg"),
+                    extension="jpeg",
+                    is_valid=True,
+                    validation_errors=(),
+                ),
+            ),
+        )
+
+    def unexpected_analysis(*args, **kwargs):
+        raise AssertionError("aggregate-only analyzer must not be called")
+
+    monkeypatch.setattr(
+        dataset_summary,
+        "analyze_dataset",
+        unexpected_analysis,
+    )
+    monkeypatch.setattr(
+        dataset_summary,
+        "analyze_dataset_with_manifest",
+        record_manifest_analysis,
+    )
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "dataset-summary",
+            "data/sample_dataset",
+            "--recursive",
+            "--min-width",
+            "64",
+            "--min-height",
+            "48",
+            "--manifest-output",
+            str(manifest_path),
+        ],
+    )
+
+    assert dataset_summary.main() == 0
+
+    captured = capsys.readouterr()
+    record = json.loads(manifest_path.read_text(encoding="utf-8"))
+
+    assert analyzer_calls == [(True, 64, 48)]
+    assert record["path"] == "coral.jpg"
+    assert "Dataset Summary" in captured.out
+    assert captured.err == ""
+
+
+def test_main_manifest_includes_invalid_and_omits_unsupported(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Write supported candidates and keep printing the aggregate report."""
+
+    create_test_image(tmp_path / "coral.jpg", width=80, height=60)
+    (tmp_path / "broken.png").write_bytes(b"not an image")
+    (tmp_path / "notes.txt").write_text("unsupported", encoding="utf-8")
+    manifest_path = tmp_path / "manifest.jsonl"
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "dataset-summary",
+            str(tmp_path),
+            "--manifest-output",
+            str(manifest_path),
+        ],
+    )
+
+    assert dataset_summary.main() == 0
+
+    captured = capsys.readouterr()
+    records = [
+        json.loads(line)
+        for line in manifest_path.read_text(encoding="utf-8").splitlines()
+    ]
+
+    assert [record["path"] for record in records] == [
+        "broken.png",
+        "coral.jpg",
+    ]
+    assert records[0]["is_valid"] is False
+    assert records[0]["validation_errors"] == [
+        "Image could not be decoded."
+    ]
+    assert records[0]["width"] is None
+    assert records[1]["is_valid"] is True
+    assert records[1]["width"] == 80
+    assert records[1]["height"] == 60
+    assert "Dataset Summary" in captured.out
+    assert captured.err == ""
+
+
+def test_main_writes_recursive_manifest_and_json_report(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Write both outputs and expose recursive duplicate membership."""
+
+    nested_directory = tmp_path / "nested"
+    nested_directory.mkdir()
+    source_path = tmp_path / "source.png"
+    nested_copy = nested_directory / "copy.png"
+    create_test_image(source_path)
+    copyfile(source_path, nested_copy)
+    (nested_directory / "broken.jpg").write_bytes(b"not an image")
+    report_path = tmp_path / "summary.json"
+    manifest_path = tmp_path / "manifest.jsonl"
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "dataset-summary",
+            str(tmp_path),
+            "--recursive",
+            "--format",
+            "json",
+            "--output",
+            str(report_path),
+            "--manifest-output",
+            str(manifest_path),
+        ],
+    )
+
+    assert dataset_summary.main() == 0
+
+    captured = capsys.readouterr()
+    report = json.loads(report_path.read_text(encoding="utf-8"))
+    records = [
+        json.loads(line)
+        for line in manifest_path.read_text(encoding="utf-8").splitlines()
+    ]
+    records_by_path = {
+        record["path"]: record
+        for record in records
+    }
+    digest = calculate_sha256(source_path)
+
+    assert report["total_images"] == 3
+    assert report["valid_images"] == 2
+    assert report["invalid_images"] == 1
+    assert report["duplicate_images"]["group_count"] == 1
+    assert records_by_path["source.png"][
+        "duplicate_group_sha256"
+    ] == digest
+    assert records_by_path["nested/copy.png"][
+        "duplicate_group_sha256"
+    ] == digest
+    assert records_by_path["nested/broken.jpg"]["is_valid"] is False
+    assert captured.out == ""
+    assert captured.err == ""
+
+
+def test_main_manifest_respects_custom_thresholds(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Apply CLI thresholds before manifest metadata is populated."""
+
+    create_test_image(tmp_path / "image.png", width=50, height=60)
+    manifest_path = tmp_path / "manifest.jsonl"
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "dataset-summary",
+            str(tmp_path),
+            "--min-width",
+            "100",
+            "--min-height",
+            "40",
+            "--format",
+            "json",
+            "--manifest-output",
+            str(manifest_path),
+        ],
+    )
+
+    assert dataset_summary.main() == 0
+
+    captured = capsys.readouterr()
+    report = json.loads(captured.out)
+    record = json.loads(manifest_path.read_text(encoding="utf-8"))
+
+    assert report["valid_images"] == 0
+    assert report["invalid_images"] == 1
+    assert record["is_valid"] is False
+    assert record["validation_errors"] == [
+        "Width 50px is below minimum 100px."
+    ]
+    assert record["width"] is None
+    assert captured.err == ""
+
+
+def test_main_empty_dataset_writes_empty_manifest(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Keep empty datasets successful with a zero-byte manifest."""
+
+    manifest_path = tmp_path / "manifest.jsonl"
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "dataset-summary",
+            str(tmp_path),
+            "--manifest-output",
+            str(manifest_path),
+        ],
+    )
+
+    assert dataset_summary.main() == 0
+
+    captured = capsys.readouterr()
+    assert manifest_path.read_bytes() == b""
+    assert "No supported image files found." in captured.out
+    assert captured.err == ""
+
+
+@pytest.mark.parametrize("failure_kind", ["missing_parent", "directory"])
+def test_main_reports_manifest_path_failures(
+    failure_kind: str,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Report expected manifest path failures without aggregate output."""
+
+    if failure_kind == "missing_parent":
+        manifest_directory = tmp_path / "missing"
+        manifest_path = manifest_directory / "manifest.jsonl"
+        expected_error = (
+            "Error: manifest directory does not exist: "
+            f"{manifest_directory}\n"
+        )
+    else:
+        manifest_path = tmp_path / "manifest"
+        manifest_path.mkdir()
+        expected_error = (
+            f"Error: manifest path is not a file: {manifest_path}\n"
+        )
+
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "dataset-summary",
+            str(tmp_path),
+            "--manifest-output",
+            str(manifest_path),
+        ],
+    )
+
+    assert dataset_summary.main() == 1
+
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert captured.err == expected_error
+    assert "Traceback" not in captured.err
+
+
+def test_main_reports_manifest_permission_failure(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Translate manifest permission errors and suppress aggregate output."""
+
+    manifest_path = tmp_path / "manifest.jsonl"
+
+    def deny_write(
+        path: Path,
+        data: str,
+        *,
+        encoding: str | None = None,
+        errors: str | None = None,
+        newline: str | None = None,
+    ) -> int:
+        raise PermissionError("permission denied")
+
+    monkeypatch.setattr(Path, "write_text", deny_write)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "dataset-summary",
+            str(tmp_path),
+            "--manifest-output",
+            str(manifest_path),
+        ],
+    )
+
+    assert dataset_summary.main() == 1
+
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert captured.err == (
+        "Error: could not write manifest file "
+        f"{manifest_path}: permission denied\n"
+    )
     assert "Traceback" not in captured.err

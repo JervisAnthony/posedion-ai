@@ -8,8 +8,14 @@ import sys
 from pathlib import Path
 from typing import Callable
 
-from poseidon_ai.nautilus_vision.dataset_analyzer import analyze_dataset
+from poseidon_ai.nautilus_vision.dataset_analyzer import (
+    analyze_dataset,
+    analyze_dataset_with_manifest,
+)
 from poseidon_ai.nautilus_vision.dataset_csv import format_dataset_csv
+from poseidon_ai.nautilus_vision.dataset_manifest import (
+    format_dataset_manifest_jsonl,
+)
 from poseidon_ai.nautilus_vision.dataset_markdown import (
     format_dataset_markdown,
 )
@@ -251,6 +257,46 @@ def _positive_pixel_count(value: str) -> int:
     return pixels
 
 
+def _write_text_file(
+    path: Path,
+    content: str,
+    *,
+    output_name: str,
+) -> str | None:
+    """Write UTF-8 text or return a concise operational error."""
+
+    output_directory = path.parent
+
+    try:
+        if path.is_dir():
+            return f"Error: {output_name} path is not a file: {path}"
+
+        if not output_directory.exists():
+            return (
+                f"Error: {output_name} directory does not exist: "
+                f"{output_directory}"
+            )
+
+        path.write_text(
+            content,
+            encoding="utf-8",
+        )
+    except IsADirectoryError:
+        return f"Error: {output_name} path is not a file: {path}"
+    except FileNotFoundError:
+        return (
+            f"Error: {output_name} directory does not exist: "
+            f"{output_directory}"
+        )
+    except OSError as error:
+        return (
+            f"Error: could not write {output_name} file "
+            f"{path}: {_os_error_message(error)}"
+        )
+
+    return None
+
+
 def main() -> int:
     """Run the dataset summary command."""
 
@@ -310,17 +356,37 @@ def main() -> int:
         help="Write the report to a file.",
     )
 
+    parser.add_argument(
+        "--manifest-output",
+        type=Path,
+        metavar="PATH",
+        help="Write a per-image JSONL dataset manifest to PATH.",
+    )
+
     args = parser.parse_args()
 
     dataset_path = Path(args.dataset_path)
+    manifest = None
 
     try:
-        stats = analyze_dataset(
-            dataset_path,
-            recursive=args.recursive,
-            min_width=args.min_width,
-            min_height=args.min_height,
-        )
+        if args.manifest_output:
+            analysis_result = analyze_dataset_with_manifest(
+                dataset_path,
+                recursive=args.recursive,
+                min_width=args.min_width,
+                min_height=args.min_height,
+            )
+            stats = analysis_result.statistics
+            manifest = format_dataset_manifest_jsonl(
+                analysis_result.manifest_entries
+            )
+        else:
+            stats = analyze_dataset(
+                dataset_path,
+                recursive=args.recursive,
+                min_width=args.min_width,
+                min_height=args.min_height,
+            )
     except FileNotFoundError:
         print(
             f"Error: dataset path does not exist: {dataset_path}",
@@ -341,6 +407,16 @@ def main() -> int:
         )
         return 1
 
+    if args.manifest_output:
+        manifest_error = _write_text_file(
+            args.manifest_output,
+            manifest or "",
+            output_name="manifest",
+        )
+        if manifest_error:
+            print(manifest_error, file=sys.stderr)
+            return 1
+
     output_format = "json" if args.json else args.format
 
     formatter = FORMATTER_REGISTRY[output_format]
@@ -350,48 +426,13 @@ def main() -> int:
     )
 
     if args.output:
-        output_path = args.output
-        output_directory = output_path.parent
-
-        try:
-            if output_path.is_dir():
-                print(
-                    f"Error: output path is not a file: {output_path}",
-                    file=sys.stderr,
-                )
-                return 1
-
-            if not output_directory.exists():
-                print(
-                    "Error: output directory does not exist: "
-                    f"{output_directory}",
-                    file=sys.stderr,
-                )
-                return 1
-
-            output_path.write_text(
-                summary,
-                encoding="utf-8",
-            )
-        except IsADirectoryError:
-            print(
-                f"Error: output path is not a file: {output_path}",
-                file=sys.stderr,
-            )
-            return 1
-        except FileNotFoundError:
-            print(
-                "Error: output directory does not exist: "
-                f"{output_directory}",
-                file=sys.stderr,
-            )
-            return 1
-        except OSError as error:
-            print(
-                "Error: could not write output file "
-                f"{output_path}: {_os_error_message(error)}",
-                file=sys.stderr,
-            )
+        output_error = _write_text_file(
+            args.output,
+            summary,
+            output_name="output",
+        )
+        if output_error:
+            print(output_error, file=sys.stderr)
             return 1
     else:
         print(summary)

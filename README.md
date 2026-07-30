@@ -40,6 +40,8 @@ work.
   then exposes them in each dataset report.
 - Renders dataset reports as text, JSON, CSV, or Markdown.
 - Writes any selected report to a UTF-8 file.
+- Exports a deterministic JSONL manifest with one relative, portable record
+  per supported valid or invalid image candidate.
 - Reports common dataset and output-path failures without tracebacks.
 - Provides centralized console and rotating-file logging utilities.
 - Uses `pyproject.toml` for package metadata, dependencies, Python support,
@@ -127,7 +129,15 @@ poseidon-dataset-summary path/to/dataset --format markdown
 
 # Write the selected report instead of printing it
 poseidon-dataset-summary path/to/dataset --format json --output report.json
+
+# Export a per-candidate JSONL manifest alongside the report
+poseidon-dataset-summary path/to/dataset \
+    --manifest-output dataset-manifest.jsonl
 ```
+
+Valid manifest entries contain the metadata already collected by analysis.
+Invalid entries contain ordered validation errors and null metadata fields;
+unsupported files are omitted.
 
 ## Output examples
 
@@ -303,7 +313,7 @@ python -m pytest tests/test_dataset_summary.py -v
 GitHub Actions runs the complete test suite on Ubuntu and Windows with
 Python 3.13.
 
-The suite contained 127 passing tests when this documentation was verified.
+The suite contained 148 passing tests when this documentation was verified.
 
 ## Project structure
 

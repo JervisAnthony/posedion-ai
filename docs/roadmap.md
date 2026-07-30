@@ -23,6 +23,8 @@ exploratory entries are not delivery commitments and have no assigned dates.
 - Valid-image pixel-area and megapixel statistics across every report format
 - SHA-256 exact duplicate detection for valid images across every report
   format
+- Deterministic per-image JSONL manifest export with validation, metadata,
+  and duplicate-group membership
 - Structured invalid-image diagnostics in every dataset report
 - Text, JSON, CSV, and Markdown dataset reports
 - UTF-8 report file output
@@ -42,7 +44,6 @@ exploratory entries are not delivery commitments and have no assigned dates.
 
 ### Planned
 
-- Dataset manifest export
 - Model-training and inference capabilities
 
 ### Exploratory

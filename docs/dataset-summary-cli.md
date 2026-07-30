@@ -14,6 +14,7 @@ poseidon-dataset-summary DATASET_PATH
     [--json]
     [--format {text,json,csv,markdown}]
     [--output OUTPUT]
+    [--manifest-output PATH]
 ```
 
 `DATASET_PATH` is the required directory to inspect.
@@ -35,6 +36,7 @@ python -m poseidon_ai.nautilus_vision.dataset_summary DATASET_PATH
 | `--format {text,json,csv,markdown}` | Select the report format; default: `text`. |
 | `--json` | Backward-compatible shortcut that selects JSON. |
 | `--output PATH` | Write UTF-8 output to a file instead of standard output. |
+| `--manifest-output PATH` | Write a per-image JSONL dataset manifest. |
 | `-h`, `--help` | Show argparse help and exit. |
 
 If `--json` and `--format` are both supplied, `--json` takes precedence.
@@ -102,6 +104,79 @@ It can be combined with recursive scanning:
 ```bash
 poseidon-dataset-summary data/sample_dataset --recursive --format json --output dataset-report.json
 ```
+
+## JSONL dataset manifest
+
+`--manifest-output PATH` writes one compact JSON object followed by a newline
+for every supported candidate. Valid and invalid supported images are
+included; unsupported files remain ignored. Records are sorted by relative
+portable path using case-insensitive then case-sensitive ordering, so
+absolute machine-specific paths are never exported.
+
+```bash
+poseidon-dataset-summary data/sample_dataset \
+    --manifest-output dataset-manifest.jsonl
+```
+
+Every line uses this stable key order:
+
+```text
+path
+extension
+is_valid
+validation_errors
+width
+height
+channels
+size_bytes
+pixel_count
+megapixels
+duplicate_group_sha256
+```
+
+For example, these are two independent JSONL records:
+
+```jsonl
+{"path":"nested/coral.jpg","extension":"jpeg","is_valid":true,"validation_errors":[],"width":640,"height":480,"channels":3,"size_bytes":24576,"pixel_count":307200,"megapixels":0.3072,"duplicate_group_sha256":null}
+{"path":"nested/corrupt.png","extension":"png","is_valid":false,"validation_errors":["Image could not be decoded."],"width":null,"height":null,"channels":null,"size_bytes":null,"pixel_count":null,"megapixels":null,"duplicate_group_sha256":null}
+```
+
+Paths use forward slashes relative to `DATASET_PATH`. Extensions use the
+analyzer's normalized values, including `jpeg` for `.jpg` and `tiff` for
+`.tif`. Valid entries contain the width, height, decoded numeric channel
+count, file size, pixel count, and megapixels already collected during
+analysis. Megapixels are `pixel_count / 1_000_000`, rounded to six decimal
+places. Their validation-error array is empty.
+
+Invalid entries preserve every validator message in its original order and
+use `null` for all metadata and duplicate fields. A complete lowercase
+`duplicate_group_sha256` appears only on valid files belonging to a completed
+exact-duplicate group. Unique files and same-size non-duplicates use `null`;
+the manifest does not cause unique files to be hashed.
+
+`--recursive` includes supported nested candidates. Validation thresholds
+control whether each decodable candidate receives valid metadata or invalid
+errors. A dataset with no supported candidates writes a zero-byte manifest.
+
+Manifest export is additional to the aggregate report. With no `--output`,
+the selected aggregate report still prints to standard output. With both
+options, the two files are written and standard output stays empty:
+
+```bash
+poseidon-dataset-summary data/sample_dataset \
+    --recursive \
+    --min-width 64 \
+    --min-height 64 \
+    --format json \
+    --output dataset-summary.json \
+    --manifest-output dataset-manifest.jsonl
+```
+
+Manifest export does not change the text, JSON, CSV, or Markdown aggregate
+schemas. Its parent directory must already exist. Missing parents, directory
+paths, permission failures, and other expected write errors return status 1
+with a concise standard-error message and no traceback. The CLI does not
+print the aggregate report after a manifest write failure.
 
 ## Recursive scanning
 
@@ -419,7 +494,8 @@ reports are portable across operating systems.
 
 - Successful terminal output and file writes return status 0.
 - `--help` returns status 0.
-- Expected dataset and output filesystem failures return status 1. These
+- Expected dataset, report-output, and manifest-output filesystem failures
+  return status 1. These
   failures are written to standard error as concise `Error:` messages without
   a traceback; standard output remains empty.
 - Argparse rejects missing arguments or unsupported `--format` values and
@@ -427,8 +503,8 @@ reports are portable across operating systems.
 
 Status 1 covers missing dataset paths, files supplied as dataset paths,
 dataset directories that cannot be read, missing output directories,
-directories supplied as output paths, and output permission or write errors.
-The CLI does not create missing output directories.
+directories supplied as output paths, and output permission or write errors
+for either output. The CLI does not create missing output directories.
 
 A valid empty dataset remains successful and retains the existing empty-state
 report. Corrupt or undersized supported images also remain successful
@@ -437,7 +513,8 @@ than becoming CLI errors.
 
 ## Current limitations
 
-- The parent of an `--output` path is not created automatically.
+- The parent of an `--output` or `--manifest-output` path is not created
+  automatically.
 
 ## Troubleshooting
 
@@ -482,5 +559,6 @@ invalid path and every captured validation error. Adjust `--min-width` and
 
 The CLI reports missing output directories, directory output paths, and
 permission or other expected write failures on standard error and returns
-status 1. Create the parent directory before using `--output`, supply a file
-path, and confirm the process can write to that location.
+status 1. Create the parent directory before using `--output` or
+`--manifest-output`, supply a file path, and confirm the process can write to
+that location.

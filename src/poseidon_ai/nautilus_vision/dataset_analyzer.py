@@ -2,9 +2,14 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from pathlib import Path
 
 from poseidon_ai.nautilus_vision.dataset_loader import load_image_dataset
+from poseidon_ai.nautilus_vision.dataset_manifest import (
+    DatasetAnalysisResult,
+    DatasetManifestEntry,
+)
 from poseidon_ai.nautilus_vision.dataset_statistics import (
     DatasetStatistics,
     DuplicateImageGroup,
@@ -44,6 +49,43 @@ def analyze_dataset(
     DatasetStatistics
         Summary statistics for valid and invalid images.
     """
+    return _analyze_dataset(
+        dataset_path,
+        recursive=recursive,
+        min_width=min_width,
+        min_height=min_height,
+        collect_manifest=False,
+    ).statistics
+
+
+def analyze_dataset_with_manifest(
+    dataset_path: str | Path,
+    *,
+    recursive: bool = False,
+    min_width: int = DEFAULT_MIN_WIDTH,
+    min_height: int = DEFAULT_MIN_HEIGHT,
+) -> DatasetAnalysisResult:
+    """Analyze a dataset and collect its supported-candidate manifest."""
+
+    return _analyze_dataset(
+        dataset_path,
+        recursive=recursive,
+        min_width=min_width,
+        min_height=min_height,
+        collect_manifest=True,
+    )
+
+
+def _analyze_dataset(
+    dataset_path: str | Path,
+    *,
+    recursive: bool,
+    min_width: int,
+    min_height: int,
+    collect_manifest: bool,
+) -> DatasetAnalysisResult:
+    """Run the shared dataset analysis pass."""
+
     dataset_directory = Path(dataset_path)
 
     image_paths = load_image_dataset(
@@ -58,6 +100,9 @@ def analyze_dataset(
     heights: list[int] = []
     pixel_counts: list[int] = []
     size_to_paths: dict[int, list[Path]] = {}
+    manifest_entries: list[DatasetManifestEntry] | None = (
+        [] if collect_manifest else None
+    )
 
     for image_path in image_paths:
         stats.total_images += 1
@@ -87,6 +132,16 @@ def analyze_dataset(
                 )
             )
 
+            if manifest_entries is not None:
+                manifest_entries.append(
+                    DatasetManifestEntry(
+                        path=image_path.relative_to(dataset_directory),
+                        extension=extension,
+                        is_valid=False,
+                        validation_errors=validation_result.errors,
+                    )
+                )
+
             continue
 
         metadata = get_image_metadata(image_path)
@@ -103,9 +158,28 @@ def analyze_dataset(
             stats.channel_counts.get(channels, 0) + 1
         )
 
-        widths.append(metadata["width"])
-        heights.append(metadata["height"])
-        pixel_counts.append(metadata["width"] * metadata["height"])
+        width = metadata["width"]
+        height = metadata["height"]
+        pixel_count = width * height
+        widths.append(width)
+        heights.append(height)
+        pixel_counts.append(pixel_count)
+
+        if manifest_entries is not None:
+            manifest_entries.append(
+                DatasetManifestEntry(
+                    path=image_path.relative_to(dataset_directory),
+                    extension=extension,
+                    is_valid=True,
+                    validation_errors=(),
+                    width=width,
+                    height=height,
+                    channels=channels,
+                    size_bytes=metadata["size_bytes"],
+                    pixel_count=pixel_count,
+                    megapixels=round(pixel_count / 1_000_000, 6),
+                )
+            )
 
     if widths:
         stats.min_width = min(widths)
@@ -165,4 +239,33 @@ def analyze_dataset(
     stats.extension_counts = dict(sorted(stats.extension_counts.items()))
     stats.channel_counts = dict(sorted(stats.channel_counts.items()))
 
-    return stats
+    if manifest_entries is None:
+        completed_entries: tuple[DatasetManifestEntry, ...] = ()
+    else:
+        duplicate_digests = {
+            image_path.relative_to(dataset_directory): group.sha256
+            for group in stats.duplicate_image_groups
+            for image_path in group.image_paths
+        }
+        completed_entries = tuple(
+            sorted(
+                (
+                    replace(
+                        entry,
+                        duplicate_group_sha256=duplicate_digests.get(
+                            entry.path
+                        ),
+                    )
+                    for entry in manifest_entries
+                ),
+                key=lambda entry: (
+                    entry.path.as_posix().casefold(),
+                    entry.path.as_posix(),
+                ),
+            )
+        )
+
+    return DatasetAnalysisResult(
+        statistics=stats,
+        manifest_entries=completed_entries,
+    )
