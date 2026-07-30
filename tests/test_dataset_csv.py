@@ -8,6 +8,7 @@ from poseidon_ai.nautilus_vision.dataset_csv import (
 )
 from poseidon_ai.nautilus_vision.dataset_statistics import (
     DatasetStatistics,
+    DuplicateImageGroup,
     InvalidImageDiagnostic,
 )
 
@@ -39,6 +40,16 @@ def create_statistics() -> DatasetStatistics:
             1: 1,
             2: 1,
         },
+        duplicate_image_groups=[
+            DuplicateImageGroup(
+                sha256="a" * 64,
+                image_paths=(
+                    Path("data/copy-c.jpg"),
+                    Path("data/copy-a.jpg"),
+                    Path("data/copy-b.jpg"),
+                ),
+            )
+        ],
         invalid_image_diagnostics=[
             InvalidImageDiagnostic(
                 image_path=Path("data/a-corrupt.jpg"),
@@ -68,6 +79,7 @@ def test_format_dataset_csv() -> None:
         "extension_counts",
         "channel_counts",
         "resolution_statistics",
+        "duplicate_images",
         "invalid_image_diagnostics",
         "min_width",
         "max_width",
@@ -100,19 +112,34 @@ def test_format_dataset_csv() -> None:
         "maximum_megapixels": 2.0736,
         "average_megapixels": 1.1904,
     }
-    assert json.loads(values[7]) == [
+    assert json.loads(values[7]) == {
+        "group_count": 1,
+        "file_count": 3,
+        "redundant_copy_count": 2,
+        "groups": [
+            {
+                "sha256": "a" * 64,
+                "image_paths": [
+                    "data/copy-a.jpg",
+                    "data/copy-b.jpg",
+                    "data/copy-c.jpg",
+                ],
+            }
+        ],
+    }
+    assert json.loads(values[8]) == [
         {
             "image_path": "data/a-corrupt.jpg",
             "errors": ["Image could not be decoded."],
         }
     ]
-    assert values[8] == "640"
-    assert values[9] == "1280"
-    assert values[10] == "906.67"
-    assert values[11] == "480"
-    assert values[12] == "720"
-    assert values[13] == "600.00"
-    assert values[14] == "2048"
+    assert values[9] == "640"
+    assert values[10] == "1280"
+    assert values[11] == "906.67"
+    assert values[12] == "480"
+    assert values[13] == "720"
+    assert values[14] == "600.00"
+    assert values[15] == "2048"
 
 
 def test_format_dataset_csv_escapes_extension_json() -> None:
@@ -158,7 +185,7 @@ def test_format_dataset_csv_escapes_and_sorts_diagnostics() -> None:
     rows = list(csv.reader(io.StringIO(result)))
 
     assert len(rows) == 2
-    assert json.loads(rows[1][7]) == [
+    assert json.loads(rows[1][8]) == [
         {
             "image_path": "data/a-corrupt.jpg",
             "errors": ["Image could not be decoded."],
@@ -179,6 +206,7 @@ def test_format_dataset_csv_with_no_images() -> None:
     stats = create_statistics()
     stats.extension_counts = {}
     stats.channel_counts = {}
+    stats.duplicate_image_groups = []
     stats.total_images = 0
     stats.valid_images = 0
     stats.invalid_images = 0
@@ -211,4 +239,10 @@ def test_format_dataset_csv_with_no_images() -> None:
         "maximum_megapixels": 0.0,
         "average_megapixels": 0.0,
     }
-    assert json.loads(rows[1][7]) == []
+    assert json.loads(rows[1][7]) == {
+        "group_count": 0,
+        "file_count": 0,
+        "redundant_copy_count": 0,
+        "groups": [],
+    }
+    assert json.loads(rows[1][8]) == []

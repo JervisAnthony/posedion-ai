@@ -35,6 +35,7 @@ work.
 - Analyzes valid and invalid image counts, width and height statistics, valid
   image bytes, normalized extension counts, and decoded valid-image channel
   counts, plus valid-image pixel-area and megapixel statistics.
+- Detects byte-identical valid image files using SHA-256 exact-content hashes.
 - Captures structured paths and every validation error for invalid images,
   then exposes them in each dataset report.
 - Renders dataset reports as text, JSON, CSV, or Markdown.
@@ -160,6 +161,10 @@ Minimum MP        : 0.31
 Maximum MP        : 0.92
 Average MP        : 0.61
 
+Exact Duplicate Images
+----------------------
+No exact duplicate images found.
+
 Invalid Image Diagnostics
 -------------------------
 No invalid images found.
@@ -191,6 +196,12 @@ sections.
     "maximum_megapixels": 0.9216,
     "average_megapixels": 0.6144
   },
+  "duplicate_images": {
+    "group_count": 0,
+    "file_count": 0,
+    "redundant_copy_count": 0,
+    "groups": []
+  },
   "invalid_image_diagnostics": [],
   "width": {
     "minimum": 640,
@@ -210,8 +221,8 @@ sections.
 ### CSV
 
 ```csv
-dataset_path,total_images,valid_images,invalid_images,extension_counts,channel_counts,resolution_statistics,invalid_image_diagnostics,min_width,max_width,average_width,min_height,max_height,average_height,total_size_bytes
-data/sample_dataset,2,2,0,"{""jpeg"": 1, ""png"": 1}","{""3"": 2}","{""minimum_pixels"": 307200, ""maximum_pixels"": 921600, ""average_pixels"": 614400.0, ""minimum_megapixels"": 0.3072, ""maximum_megapixels"": 0.9216, ""average_megapixels"": 0.6144}",[],640,1280,960.00,480,720,600.00,2048
+dataset_path,total_images,valid_images,invalid_images,extension_counts,channel_counts,resolution_statistics,duplicate_images,invalid_image_diagnostics,min_width,max_width,average_width,min_height,max_height,average_height,total_size_bytes
+data/sample_dataset,2,2,0,"{""jpeg"": 1, ""png"": 1}","{""3"": 2}","{""minimum_pixels"": 307200, ""maximum_pixels"": 921600, ""average_pixels"": 614400.0, ""minimum_megapixels"": 0.3072, ""maximum_megapixels"": 0.9216, ""average_megapixels"": 0.6144}","{""group_count"": 0, ""file_count"": 0, ""redundant_copy_count"": 0, ""groups"": []}",[],640,1280,960.00,480,720,600.00,2048
 ```
 
 ### Markdown
@@ -249,6 +260,10 @@ data/sample_dataset,2,2,0,"{""jpeg"": 1, ""png"": 1}","{""3"": 2}","{""minimum_p
 | Maximum | 921,600 | 0.92 |
 | Average | 614,400.00 | 0.61 |
 
+## Exact Duplicate Images
+
+No exact duplicate images found.
+
 ## Invalid Image Diagnostics
 
 No invalid images found.
@@ -259,6 +274,9 @@ metadata pipeline for valid images; they do not infer colour-mode semantics.
 Resolution statistics use each valid image's actual decoded width × height
 pixel area. Megapixels are derived from those areas without inferring DPI,
 quality, or semantic resolution categories.
+Exact duplicate detection compares SHA-256 hashes of complete valid-file
+bytes. Visually similar, resized, or re-encoded images are not duplicates
+unless their bytes are identical.
 
 ## Supported image formats
 
@@ -285,7 +303,7 @@ python -m pytest tests/test_dataset_summary.py -v
 GitHub Actions runs the complete test suite on Ubuntu and Windows with
 Python 3.13.
 
-The suite contained 110 passing tests when this documentation was verified.
+The suite contained 127 passing tests when this documentation was verified.
 
 ## Project structure
 
@@ -304,6 +322,7 @@ posedion-ai/
 │   │   ├── dataset_loader.py
 │   │   ├── dataset_statistics.py
 │   │   ├── dataset_summary.py
+│   │   ├── image_hash.py
 │   │   └── image_validator.py
 │   └── utils/
 └── tests/
@@ -321,7 +340,7 @@ selection mechanism for all four report types. See
 - Analysis and presentation remain separate.
 - Structured dataclasses carry statistics and validation diagnostics.
 - Formatter output is deterministic, including normalized extension and
-  numeric channel order and resolution serialization.
+  numeric channel order, resolution serialization, and duplicate groups.
 - CSV serialization uses the Python standard library.
 - CLI behavior and structured output are tested.
 - Paths are handled with `pathlib`, with portable report tests.

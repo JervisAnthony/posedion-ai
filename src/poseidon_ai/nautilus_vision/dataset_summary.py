@@ -15,6 +15,7 @@ from poseidon_ai.nautilus_vision.dataset_markdown import (
 )
 from poseidon_ai.nautilus_vision.dataset_serialization import (
     serialize_channel_counts,
+    serialize_duplicate_images,
     serialize_invalid_image_diagnostics,
     serialize_resolution_statistics,
 )
@@ -69,6 +70,35 @@ def format_dataset_summary(
     else:
         image_resolution = "No valid image resolution data found."
 
+    duplicate_data = serialize_duplicate_images(
+        stats.duplicate_image_groups
+    )
+    if stats.duplicate_image_groups:
+        duplicate_group_sections = []
+        for group in duplicate_data["groups"]:
+            duplicate_group_sections.append(
+                "\n".join(
+                    [
+                        f"SHA-256            : {group['sha256']}",
+                        *[
+                            f"- {image_path}"
+                            for image_path in group["image_paths"]
+                        ],
+                    ]
+                )
+            )
+        duplicate_images = (
+            "Duplicate Groups   : "
+            f"{duplicate_data['group_count']}\n"
+            "Files in Groups    : "
+            f"{duplicate_data['file_count']}\n"
+            "Redundant Copies   : "
+            f"{duplicate_data['redundant_copy_count']}\n\n"
+            + "\n\n".join(duplicate_group_sections)
+        )
+    else:
+        duplicate_images = "No exact duplicate images found."
+
     if stats.invalid_image_diagnostics:
         invalid_image_diagnostics = "\n\n".join(
             "\n".join(
@@ -110,6 +140,10 @@ def format_dataset_summary(
         "Image Resolution\n"
         "----------------\n"
         f"{image_resolution}\n"
+        "\n"
+        "Exact Duplicate Images\n"
+        "----------------------\n"
+        f"{duplicate_images}\n"
         "\n"
         "Invalid Image Diagnostics\n"
         "-------------------------\n"
@@ -154,6 +188,9 @@ def format_dataset_summary_json(
             stats.min_pixel_count,
             stats.max_pixel_count,
             stats.average_pixel_count,
+        ),
+        "duplicate_images": serialize_duplicate_images(
+            stats.duplicate_image_groups
         ),
         "invalid_image_diagnostics": (
             serialize_invalid_image_diagnostics(

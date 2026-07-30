@@ -111,10 +111,11 @@ nested directories contribute to the same report.
 
 Nested valid images contribute to counts, dimensions, format statistics,
 decoded channel statistics, pixel-area and megapixel statistics, and dataset
-size. Nested corrupt or undersized supported images contribute to invalid
-counts, format statistics, and invalid-image diagnostics, including their
-portable paths and validation errors. Unsupported nested files remain ignored,
-and empty nested directories are not errors.
+size. They also participate in exact duplicate detection. Nested corrupt or
+undersized supported images contribute to invalid counts, format statistics,
+and invalid-image diagnostics, including their portable paths and validation
+errors, but never to duplicate groups. Unsupported nested files remain
+ignored, and empty nested directories are not errors.
 
 The equivalent module invocation accepts the same option:
 
@@ -148,9 +149,10 @@ poseidon-dataset-summary data/sample_dataset --recursive --min-width 64 --min-he
 
 Images that fail custom thresholds remain successful dataset-analysis
 results. Their width and height errors appear in invalid-image diagnostics;
-they do not contribute to channel or resolution statistics and are not
-operational CLI failures. Zero, negative, or non-integer option values are
-argparse usage errors and return status 2.
+they do not contribute to channel or resolution statistics and are ineligible
+for duplicate detection. They are not operational CLI failures. Zero,
+negative, or non-integer option values are argparse usage errors and return
+status 2.
 
 Threshold values affect validation only. They are not included in the text,
 JSON, CSV, or Markdown report schemas.
@@ -163,10 +165,11 @@ Text output includes:
 2. alphabetically ordered, uppercase image-format counts;
 3. numerically ordered decoded channel counts for valid images;
 4. valid-image minimum, maximum, and average pixel-area and megapixel values;
-5. invalid-image paths with every validation error;
-6. valid-image width statistics;
-7. valid-image height statistics;
-8. valid-image dataset size in human-readable units.
+5. exact duplicate groups and derived counts;
+6. invalid-image paths with every validation error;
+7. valid-image width statistics;
+8. valid-image height statistics;
+9. valid-image dataset size in human-readable units.
 
 An empty candidate set displays `No supported image files found.` and zero
 dimension and size values. When there are no diagnostics, the diagnostics
@@ -187,6 +190,25 @@ Minimum MP        : 0.31
 Maximum MP        : 2.07
 Average MP        : 1.19
 ```
+
+Exact duplicate output follows resolution and uses complete SHA-256 digests
+and portable, deterministically ordered paths:
+
+```text
+Exact Duplicate Images
+----------------------
+Duplicate Groups   : 1
+Files in Groups    : 3
+Redundant Copies   : 2
+
+SHA-256            : <complete-digest>
+- dataset/copy-a.jpg
+- dataset/copy-b.jpg
+- dataset/copy-c.jpg
+```
+
+When there are no duplicate groups, the section displays
+`No exact duplicate images found.`
 
 ## JSON schema
 
@@ -210,6 +232,20 @@ Average MP        : 1.19
     "minimum_megapixels": 0.3072,
     "maximum_megapixels": 2.0736,
     "average_megapixels": 1.1904
+  },
+  "duplicate_images": {
+    "group_count": 1,
+    "file_count": 2,
+    "redundant_copy_count": 1,
+    "groups": [
+      {
+        "sha256": "<complete-digest>",
+        "image_paths": [
+          "data/copy-a.jpg",
+          "data/copy-b.jpg"
+        ]
+      }
+    ]
   },
   "invalid_image_diagnostics": [
     {
@@ -259,9 +295,36 @@ values are zero, with average and megapixel values represented as `0.0`.
 Recursive valid images contribute when enabled, and validation thresholds can
 change which images contribute.
 
+`duplicate_images` identifies byte-identical valid files by complete SHA-256
+content digest. `group_count` is the number of groups, `file_count` is the
+number of participating files, and `redundant_copy_count` is the number that
+could be removed while retaining one file per group. Every group contains
+`sha256` and an `image_paths` string array. Groups and portable paths are
+deterministically ordered.
+
+Files are first bucketed by metadata file size. Unique-size valid files are
+not hashed because exact duplicates must have the same size. Matching size is
+only a candidate filter and never proves duplication; every same-size
+candidate is hashed once. Invalid supported images never participate.
+Recursive valid files participate when enabled, and validation thresholds can
+change eligibility. The empty structure is:
+
+```json
+{
+  "group_count": 0,
+  "file_count": 0,
+  "redundant_copy_count": 0,
+  "groups": []
+}
+```
+
+Detection is byte-exact. Visually similar, resized, recompressed, re-encoded,
+cropped, or metadata-modified images are not duplicates unless their complete
+file bytes match.
+
 ## CSV schema
 
-The CSV report contains a header and one data row with these fifteen stable
+The CSV report contains a header and one data row with these sixteen stable
 columns:
 
 | Position | Column |
@@ -273,36 +336,40 @@ columns:
 | 5 | `extension_counts` |
 | 6 | `channel_counts` |
 | 7 | `resolution_statistics` |
-| 8 | `invalid_image_diagnostics` |
-| 9 | `min_width` |
-| 10 | `max_width` |
-| 11 | `average_width` |
-| 12 | `min_height` |
-| 13 | `max_height` |
-| 14 | `average_height` |
-| 15 | `total_size_bytes` |
+| 8 | `duplicate_images` |
+| 9 | `invalid_image_diagnostics` |
+| 10 | `min_width` |
+| 11 | `max_width` |
+| 12 | `average_width` |
+| 13 | `min_height` |
+| 14 | `max_height` |
+| 15 | `average_height` |
+| 16 | `total_size_bytes` |
 
-`extension_counts`, `channel_counts`, and `resolution_statistics` are JSON
-objects stored in separate CSV fields:
+`extension_counts`, `channel_counts`, `resolution_statistics`, and
+`duplicate_images` are JSON objects stored in separate CSV fields:
 
 ```csv
-data/sample_dataset,3,2,1,"{""jpeg"": 2, ""png"": 1}","{""3"": 2}","{""minimum_pixels"": 307200, ""maximum_pixels"": 2073600, ""average_pixels"": 1190400.0, ""minimum_megapixels"": 0.3072, ""maximum_megapixels"": 2.0736, ""average_megapixels"": 1.1904}","[{""image_path"": ""data/a-corrupt.jpg"", ""errors"": [""Image could not be decoded.""]}]",640,1280,960.00,480,720,600.00,2048
+data/sample_dataset,3,2,1,"{""jpeg"": 2, ""png"": 1}","{""3"": 2}","{""minimum_pixels"": 307200, ""maximum_pixels"": 2073600, ""average_pixels"": 1190400.0, ""minimum_megapixels"": 0.3072, ""maximum_megapixels"": 2.0736, ""average_megapixels"": 1.1904}","{""group_count"": 0, ""file_count"": 0, ""redundant_copy_count"": 0, ""groups"": []}","[{""image_path"": ""data/a-corrupt.jpg"", ""errors"": [""Image could not be decoded.""]}]",640,1280,960.00,480,720,600.00,2048
 ```
 
 CSV quoting is produced by Python's standard-library `csv.writer`. Consumers
 should parse the document with a CSV parser, then parse column 5 as a JSON
 object, column 6 as the channel-count JSON object, column 7 as the
-resolution-statistics JSON object, and column 8 as a JSON array. Empty channel
-statistics are `{}`; resolution statistics retain the same zero-valued
-six-field object as JSON. The complete diagnostic collection stays in its one
-cell; an empty collection is `[]`. Average dimensions are rendered with two
-decimal places.
+resolution-statistics JSON object, column 8 as the duplicate-images JSON
+object, and column 9 as a JSON array. Empty channel statistics are `{}`;
+resolution statistics retain the same zero-valued six-field object as JSON,
+and duplicate images use the explicit zero-count structure with an empty
+`groups` array. The complete diagnostic collection stays in its one cell; an
+empty collection is `[]`. Average dimensions are rendered with two decimal
+places.
 
 ## Markdown output
 
-Markdown output contains eight second-level sections: Overview, Image Formats,
-Image Channels, Image Resolution, Invalid Image Diagnostics, Width, Height,
-and Dataset Size. Image formats are alphabetically ordered and uppercased.
+Markdown output contains nine second-level sections: Overview, Image Formats,
+Image Channels, Image Resolution, Exact Duplicate Images, Invalid Image
+Diagnostics, Width, Height, and Dataset Size. Image formats are alphabetically
+ordered and uppercased.
 Image Channels is a numerically ordered two-column table of decoded channel
 counts and valid-image totals. Image Resolution is a three-column table with
 minimum, maximum, and average rows; raw pixels use thousands separators and
@@ -321,6 +388,29 @@ sections contain the same empty-state sentences as text output.
 | Maximum | 2,073,600 | 2.07 |
 | Average | 1,190,400.00 | 1.19 |
 ```
+
+Exact duplicate output includes derived counts and one subsection per
+deterministically ordered group. Digests are complete and paths use safe
+inline-code delimiters:
+
+```markdown
+## Exact Duplicate Images
+
+| Metric | Value |
+|--------|------:|
+| Duplicate Groups | 1 |
+| Files in Groups | 2 |
+| Redundant Copies | 1 |
+
+### Duplicate Group 1
+
+**SHA-256:** `<complete-digest>`
+
+- `dataset/copy-a.jpg`
+- `dataset/copy-b.jpg`
+```
+
+With no groups, Markdown displays `No exact duplicate images found.`
 
 The Markdown formatter renders the dataset path with `/` separators so saved
 reports are portable across operating systems.

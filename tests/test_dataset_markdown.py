@@ -5,6 +5,7 @@ from poseidon_ai.nautilus_vision.dataset_markdown import (
 )
 from poseidon_ai.nautilus_vision.dataset_statistics import (
     DatasetStatistics,
+    DuplicateImageGroup,
     InvalidImageDiagnostic,
 )
 
@@ -37,6 +38,16 @@ def create_statistics() -> DatasetStatistics:
             1: 1,
             2: 1,
         },
+        duplicate_image_groups=[
+            DuplicateImageGroup(
+                sha256="a" * 64,
+                image_paths=(
+                    Path("data/copy-c.jpg"),
+                    Path("data/copy-a.jpg"),
+                    Path("data/copy`b.jpg"),
+                ),
+            )
+        ],
         invalid_image_diagnostics=[
             InvalidImageDiagnostic(
                 image_path=Path("data/a-corrupt.jpg"),
@@ -61,6 +72,7 @@ def test_format_dataset_markdown() -> None:
     assert "## Image Formats" in result
     assert "## Image Channels" in result
     assert "## Image Resolution" in result
+    assert "## Exact Duplicate Images" in result
     assert "## Invalid Image Diagnostics" in result
     assert "## Width" in result
     assert "## Height" in result
@@ -85,12 +97,29 @@ def test_format_dataset_markdown() -> None:
         "## Image Resolution"
     )
     assert result.index("## Image Resolution") < result.index(
+        "## Exact Duplicate Images"
+    )
+    assert result.index("## Exact Duplicate Images") < result.index(
         "## Invalid Image Diagnostics"
     )
     assert "| Metric | Pixels | Megapixels |" in result
     assert "| Minimum | 307,200 | 0.31 |" in result
     assert "| Maximum | 2,073,600 | 2.07 |" in result
     assert "| Average | 1,190,400.00 | 1.19 |" in result
+    assert "| Duplicate Groups | 1 |" in result
+    assert "| Files in Groups | 3 |" in result
+    assert "| Redundant Copies | 2 |" in result
+    assert "### Duplicate Group 1" in result
+    assert f"**SHA-256:** `{'a' * 64}`" in result
+    assert "- `data/copy-a.jpg`" in result
+    assert "- ``data/copy`b.jpg``" in result
+    assert "- `data/copy-c.jpg`" in result
+    assert result.index("data/copy-a.jpg") < result.index(
+        "data/copy-c.jpg"
+    )
+    assert result.index("data/copy-c.jpg") < result.index(
+        "data/copy`b.jpg"
+    )
     assert "### `data/a-corrupt.jpg`" in result
     assert "- Image could not be decoded." in result
 
@@ -111,6 +140,7 @@ def test_format_dataset_markdown_with_no_images() -> None:
     stats = create_statistics()
     stats.extension_counts = {}
     stats.channel_counts = {}
+    stats.duplicate_image_groups = []
     stats.total_images = 0
     stats.valid_images = 0
     stats.invalid_images = 0
@@ -135,6 +165,7 @@ def test_format_dataset_markdown_with_no_images() -> None:
     assert "No supported image files found." in result
     assert "No valid image channel data found." in result
     assert "No valid image resolution data found." in result
+    assert "No exact duplicate images found." in result
     assert "No invalid images found." in result
 
 

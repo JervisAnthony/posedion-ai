@@ -14,6 +14,7 @@ flowchart LR
     C --> D[Dataset analyzer]
     D --> E[Image validator]
     D --> F[Image metadata]
+    D --> N[SHA-256 content hashing]
     D --> G[DatasetStatistics]
     G --> H[Formatter registry]
     H --> I[Text]
@@ -28,8 +29,9 @@ flowchart LR
 
 The same flow in words: the CLI accepts a dataset directory, the loader
 returns supported candidate paths, the analyzer validates each path and
-collects metadata for valid images, and a selected formatter renders the
-result for standard output or a file.
+collects metadata for valid images. It hashes only same-size valid candidates
+for exact duplicate detection, then a selected formatter renders the result
+for standard output or a file.
 
 ## Component responsibilities
 
@@ -66,6 +68,13 @@ filename, width, height, channel count, and on-disk byte size.
 loads an image into a NumPy array. Both raise `FileNotFoundError` when OpenCV
 cannot load the requested image.
 
+### Image hashing
+
+`nautilus_vision/image_hash.py` calculates lowercase SHA-256 content digests
+by reading files incrementally in binary chunks. It performs no image
+decoding, does not load complete files into memory, and preserves normal
+filesystem exceptions.
+
 ### Dataset analyzer
 
 `nautilus_vision/dataset_analyzer.py` coordinates discovery and validation.
@@ -81,7 +90,15 @@ default to the validator constants and are forwarded directly to
 
 `total_size_bytes` is the sum of valid-image file sizes. Invalid candidates
 still contribute to `total_images` and `extension_counts`, but not to channel
-or resolution statistics.
+or resolution statistics. They also never participate in duplicate hashing.
+
+For exact duplicates, the analyzer first buckets valid paths by metadata file
+size. Unique-size files are not hashed. Files in same-size buckets are hashed
+once each and grouped only when their complete SHA-256 digests match; matching
+size alone is never sufficient. Paths and completed groups use deterministic
+portable-path ordering. Recursive discovery and validation thresholds
+therefore control duplicate eligibility without adding traversal logic or
+another image decode.
 
 ### `DatasetStatistics`
 
@@ -90,9 +107,18 @@ from analysis to presentation. It contains dataset identity, valid and
 invalid counts, dimensions, valid-image bytes, normalized extension counts,
 numeric decoded channel counts for valid images, and invalid-image
 diagnostics. It also retains raw minimum, maximum, and average valid-image
-pixel counts. Megapixel values are not duplicated in the model. Collection
-fields use independent default factories. The model keeps channel keys as
-integers and does not attach inferred colour semantics.
+pixel counts plus immutable exact-duplicate groups containing a lowercase
+SHA-256 digest and a tuple of `Path` objects. Group, participating-file, and
+redundant-copy counts are derived properties rather than mutable state.
+Megapixel values and per-file hashes are not duplicated in the model.
+Collection fields use independent default factories. The model keeps channel
+keys as integers and does not attach inferred colour semantics.
+
+### `DuplicateImageGroup`
+
+`DuplicateImageGroup` is an immutable value containing one exact-content
+SHA-256 digest and at least two deterministically ordered valid-image paths.
+Analyzer-produced statistics never retain single-file hash groups.
 
 ### `InvalidImageDiagnostic`
 
@@ -106,24 +132,27 @@ and all captured errors without reading or validating the image again.
 `nautilus_vision/dataset_summary.py` contains the human-readable text
 formatter and JSON formatter. Text uses uppercase image-format labels and a
 numeric Image Channels section, followed by Image Resolution and diagnostics
-grouped under portable paths and a formatted size. JSON preserves normalized
+grouped under portable paths and a formatted size. An Exact Duplicate Images
+section appears between resolution and diagnostics. JSON preserves normalized
 lowercase extension keys, converts numerically ordered channel keys to
-strings, includes structured pixel and megapixel statistics plus raw and
-formatted sizes, and represents diagnostics as explicit dictionaries with
-error arrays.
+strings, includes structured pixel, megapixel, and exact-duplicate data plus
+raw and formatted sizes, and represents diagnostics as explicit dictionaries
+with error arrays.
 
 ### Shared dataset serialization
 
 `nautilus_vision/dataset_serialization.py` provides the shared deterministic
 structures used by JSON and CSV. Resolution serialization retains raw pixel
 counts and derives decimal megapixels using `pixel_count / 1_000_000`, rounded
-to six decimal places. It does not mutate `DatasetStatistics`.
+to six decimal places. Duplicate serialization derives counts, converts paths
+to portable strings, and preserves deterministic group and path ordering. It
+does not mutate `DatasetStatistics`.
 
 ### CSV formatter
 
 `nautilus_vision/dataset_csv.py` uses `csv.writer` and `io.StringIO`. It has a
-stable fifteen-column schema. The `extension_counts`, `channel_counts`, and
-`resolution_statistics` cells are JSON objects, and
+stable sixteen-column schema. The `extension_counts`, `channel_counts`,
+`resolution_statistics`, and `duplicate_images` cells are JSON objects, and
 `invalid_image_diagnostics` is a JSON array in one cell. They are serialized
 with `json.dumps`, so formats do not create dynamic columns and commas and
 quotation marks are correctly escaped.
@@ -131,9 +160,10 @@ quotation marks are correctly escaped.
 ### Markdown formatter
 
 `nautilus_vision/dataset_markdown.py` renders Overview, Image Formats, Image
-Channels, Image Resolution, Invalid Image Diagnostics, Width, Height, and
-Dataset Size sections. Diagnostic paths use portable separators and safe
-code-span delimiters, and error bullets escape Markdown punctuation.
+Channels, Image Resolution, Exact Duplicate Images, Invalid Image Diagnostics,
+Width, Height, and Dataset Size sections. Duplicate and diagnostic paths use
+portable separators and safe code-span delimiters, and error bullets escape
+Markdown punctuation.
 
 ### Formatter registry
 
@@ -184,7 +214,8 @@ analysis result; it never performs a second validation pass. Channel
 statistics likewise use metadata already collected for valid images and do
 not trigger another decode. Resolution statistics use that same metadata
 result and derive presentation-only megapixels from the model's raw pixel
-counts.
+counts. Exact duplicate reporting reads analyzer-produced groups and never
+rehashes files.
 
 ## Analyzer invariants
 
@@ -196,6 +227,17 @@ total_images == valid_images + invalid_images
 sum(extension_counts.values()) == total_images
 sum(channel_counts.values()) == valid_images
 len(invalid_image_diagnostics) == invalid_images
+all(
+    len(group.image_paths) >= 2
+    for group in duplicate_image_groups
+)
+duplicate_group_count == len(duplicate_image_groups)
+duplicate_file_count
+    == sum(len(group.image_paths) for group in duplicate_image_groups)
+redundant_copy_count
+    == sum(len(group.image_paths) - 1 for group in duplicate_image_groups)
+redundant_copy_count
+    == duplicate_file_count - duplicate_group_count
 ```
 
 When valid images exist, resolution statistics also satisfy:
@@ -227,6 +269,9 @@ retain those lowercase keys. Text and Markdown uppercase them for display.
 ## Current limitations
 
 - Dataset size excludes invalid supported files.
+- Duplicate detection is byte-exact; visually similar, resized, recompressed,
+  re-encoded, cropped, or metadata-modified images are not detected unless
+  their complete bytes match.
 - There is no model-training, inference, video, or live-camera pipeline.
 - Runtime YAML configuration is not present in the tracked repository.
 
