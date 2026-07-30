@@ -84,6 +84,17 @@ Representative invalid input:
 0 0.5 0.5 0.2 0.3 # comment
 ```
 
+## Dataset-analysis relationship
+
+`validate_yolo_label()` remains the independently usable single-file
+boundary. Library-level `analyze_yolo_dataset()` invokes it exactly once for
+each uniquely paired image and label. Orphan labels and labels involved in
+ambiguous pairing conflicts are not parsed.
+
+When a paired label is invalid, valid-line annotations remain visible in its
+pair's validation result. Dataset aggregate annotation statistics exclude
+those partial annotations and count only fully valid paired labels.
+
 ## Explicit boundaries
 
 Validation checks normalized stored fields only. It does not calculate box
@@ -91,7 +102,9 @@ edges or reject a box that would cross an image boundary. It does not open an
 image, derive pixel coordinates, clip boxes, calculate area or intersection
 over union, or detect duplicate or overlapping boxes.
 
-The component does not provide dataset-level image-label pairing,
-missing-label or orphan-label detection, class-name configuration,
-segmentation polygons, pose/keypoint labels, YAML configuration, model
-training, inference, report integration, or a CLI command.
+Single-file validation does not perform dataset traversal or pairing.
+Dataset-level pairing is provided by the separate library component described
+in [YOLO dataset analysis](yolo-dataset-analysis.md). Neither component
+provides class-name configuration, segmentation polygons, pose/keypoint
+labels, YAML configuration, model training, inference, report integration,
+or a CLI command.

@@ -33,6 +33,9 @@ work.
   independently configurable minimum dimensions, defaulting to 32 pixels.
 - Parses and strictly validates individual UTF-8 YOLO detection-label files
   with deterministic, line-numbered errors.
+- Analyzes explicitly supplied YOLO image and label directories by relative
+  pairing keys, reporting missing, orphan, conflicting, valid, invalid,
+  empty, total-annotation, and per-class annotation counts.
 - Resizes and pads images while preserving aspect ratio.
 - Analyzes valid and invalid image counts, width and height statistics, valid
   image bytes, normalized extension counts, and decoded valid-image channel
@@ -107,7 +110,7 @@ Scanning is top-level only by default. Use `--recursive` to include supported
 images in nested directories. Full syntax and behavior are covered in the
 [dataset-summary CLI guide](docs/dataset-summary-cli.md).
 
-## YOLO label validation
+## YOLO label validation and dataset analysis
 
 Each nonblank line in a YOLO detection label uses:
 
@@ -128,9 +131,36 @@ from poseidon_ai.nautilus_vision.yolo_label import (
 result = validate_yolo_label("labels/example.txt")
 ```
 
-This is a library-level single-file validator; it does not pair labels with
-images or provide class maps, training, inference, report integration, or a
-label CLI. See [YOLO label validation](docs/yolo-label-validation.md).
+The single-file validator remains independently usable. Dataset analysis
+pairs supported images and `.txt` labels by their root-relative POSIX paths
+without final extensions:
+
+```python
+from poseidon_ai.nautilus_vision.yolo_dataset import (
+    analyze_yolo_dataset,
+)
+
+result = analyze_yolo_dataset(
+    "dataset/images",
+    "dataset/labels",
+    recursive=True,
+)
+
+print(result.total_annotations)
+print(result.missing_label_images)
+print(result.orphan_label_files)
+```
+
+The result includes missing-label images, orphan labels, ambiguous pairing-key
+conflicts, valid, invalid, and empty paired-label counts, total annotations,
+and numeric per-class counts. Aggregate annotations come only from fully
+valid paired labels; an empty valid label represents an image with no
+annotations. This component does not decode image contents or configure class
+names. It is library-only: no label CLI or dataset-summary integration is
+provided.
+
+See [single-file YOLO validation](docs/yolo-label-validation.md) and
+[YOLO dataset analysis](docs/yolo-dataset-analysis.md).
 
 ## Dataset-summary CLI
 
@@ -440,7 +470,7 @@ python -m pytest tests/test_dataset_summary.py -v
 GitHub Actions runs the complete test suite on Ubuntu and Windows with
 Python 3.13.
 
-The suite contained 217 passing tests when this documentation was verified.
+The suite contained 249 passing tests when this documentation was verified.
 
 ## Project structure
 
@@ -450,6 +480,7 @@ posedion-ai/
 │   ├── architecture.md
 │   ├── dataset-summary-cli.md
 │   ├── roadmap.md
+│   ├── yolo-dataset-analysis.md
 │   └── yolo-label-validation.md
 ├── scripts/
 │   └── create_sample_dataset.py
@@ -462,6 +493,7 @@ posedion-ai/
 │   │   ├── dataset_summary.py
 │   │   ├── image_hash.py
 │   │   ├── image_validator.py
+│   │   ├── yolo_dataset.py
 │   │   └── yolo_label.py
 │   └── utils/
 └── tests/
