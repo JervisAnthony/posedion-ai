@@ -21,6 +21,7 @@ def test_dataset_statistics_defaults() -> None:
     assert stats.average_width == 0.0
     assert stats.average_height == 0.0
     assert stats.extension_counts == {}
+    assert stats.channel_counts == {}
     assert stats.invalid_image_diagnostics == []
 
 
@@ -33,6 +34,18 @@ def test_extension_counts_default_is_not_shared() -> None:
     first.extension_counts["jpeg"] = 1
 
     assert second.extension_counts == {}
+
+
+def test_channel_counts_default_is_not_shared() -> None:
+    """Each DatasetStatistics instance should own its channel counts."""
+
+    first = DatasetStatistics(dataset_path=Path("first"))
+    second = DatasetStatistics(dataset_path=Path("second"))
+
+    first.channel_counts[3] = 1
+
+    assert second.channel_counts == {}
+
 
 def test_invalid_image_diagnostics_default_is_not_shared() -> None:
     """Each DatasetStatistics instance should own its diagnostics list."""

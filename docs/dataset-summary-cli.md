@@ -109,11 +109,12 @@ Without `--recursive`, only supported images directly inside `DATASET_PATH`
 are analyzed. With `--recursive`, supported images in that directory and all
 nested directories contribute to the same report.
 
-Nested valid images contribute to counts, dimensions, format statistics, and
-dataset size. Nested corrupt or undersized supported images contribute to
-invalid counts, format statistics, and invalid-image diagnostics, including
-their portable paths and validation errors. Unsupported nested files remain
-ignored, and empty nested directories are not errors.
+Nested valid images contribute to counts, dimensions, format statistics,
+decoded channel statistics, and dataset size. Nested corrupt or undersized
+supported images contribute to invalid counts, format statistics, and
+invalid-image diagnostics, including their portable paths and validation
+errors. Unsupported nested files remain ignored, and empty nested directories
+are not errors.
 
 The equivalent module invocation accepts the same option:
 
@@ -147,8 +148,9 @@ poseidon-dataset-summary data/sample_dataset --recursive --min-width 64 --min-he
 
 Images that fail custom thresholds remain successful dataset-analysis
 results. Their width and height errors appear in invalid-image diagnostics;
-they are not operational CLI failures. Zero, negative, or non-integer option
-values are argparse usage errors and return status 2.
+they do not contribute to channel statistics and are not operational CLI
+failures. Zero, negative, or non-integer option values are argparse usage
+errors and return status 2.
 
 Threshold values affect validation only. They are not included in the text,
 JSON, CSV, or Markdown report schemas.
@@ -159,14 +161,17 @@ Text output includes:
 
 1. dataset path and image counts;
 2. alphabetically ordered, uppercase image-format counts;
-3. invalid-image paths with every validation error;
-4. valid-image width statistics;
-5. valid-image height statistics;
-6. valid-image dataset size in human-readable units.
+3. numerically ordered decoded channel counts for valid images;
+4. invalid-image paths with every validation error;
+5. valid-image width statistics;
+6. valid-image height statistics;
+7. valid-image dataset size in human-readable units.
 
 An empty candidate set displays `No supported image files found.` and zero
 dimension and size values. When there are no diagnostics, the diagnostics
-section displays `No invalid images found.`
+section displays `No invalid images found.` When there are no valid images,
+the Image Channels section displays
+`No valid image channel data found.`
 
 ## JSON schema
 
@@ -179,6 +184,9 @@ section displays `No invalid images found.`
   "extension_counts": {
     "jpeg": 2,
     "png": 1
+  },
+  "channel_counts": {
+    "3": 2
   },
   "invalid_image_diagnostics": [
     {
@@ -205,14 +213,23 @@ section displays `No invalid images found.`
 
 Numbers remain JSON numbers. `extension_counts` is an alphabetically ordered
 object with normalized lowercase keys. It counts supported candidates,
-including invalid ones. Width, height, and size fields describe valid images.
+including invalid ones. `channel_counts` is numerically ordered before its
+integer model keys are explicitly converted to textual JSON object keys; its
+values remain JSON numbers. It counts only valid images and is `{}` when no
+valid images exist. Width, height, and size fields also describe valid images.
 `invalid_image_diagnostics` is a path-sorted array. Each entry has a portable
 path string and an `errors` array in original validator order. An analysis
 with no invalid images uses an empty array.
 
+Channel values are the numeric decoded channel counts produced by the current
+metadata pipeline. They do not infer colour-mode semantics. Recursive valid
+images contribute when enabled, while validation thresholds can change
+whether an image contributes.
+
 ## CSV schema
 
-The CSV report contains a header and one data row with these stable columns:
+The CSV report contains a header and one data row with these fourteen stable
+columns:
 
 | Position | Column |
 |---------:|--------|
@@ -221,35 +238,40 @@ The CSV report contains a header and one data row with these stable columns:
 | 3 | `valid_images` |
 | 4 | `invalid_images` |
 | 5 | `extension_counts` |
-| 6 | `invalid_image_diagnostics` |
-| 7 | `min_width` |
-| 8 | `max_width` |
-| 9 | `average_width` |
-| 10 | `min_height` |
-| 11 | `max_height` |
-| 12 | `average_height` |
-| 13 | `total_size_bytes` |
+| 6 | `channel_counts` |
+| 7 | `invalid_image_diagnostics` |
+| 8 | `min_width` |
+| 9 | `max_width` |
+| 10 | `average_width` |
+| 11 | `min_height` |
+| 12 | `max_height` |
+| 13 | `average_height` |
+| 14 | `total_size_bytes` |
 
-`extension_counts` is a JSON object stored in one CSV field:
+`extension_counts` and `channel_counts` are JSON objects stored in separate
+CSV fields:
 
 ```csv
-data/sample_dataset,3,2,1,"{""jpeg"": 2, ""png"": 1}","[{""image_path"": ""data/a-corrupt.jpg"", ""errors"": [""Image could not be decoded.""]}]",640,1280,960.00,480,720,600.00,2048
+data/sample_dataset,3,2,1,"{""jpeg"": 2, ""png"": 1}","{""3"": 2}","[{""image_path"": ""data/a-corrupt.jpg"", ""errors"": [""Image could not be decoded.""]}]",640,1280,960.00,480,720,600.00,2048
 ```
 
 CSV quoting is produced by Python's standard-library `csv.writer`. Consumers
 should parse the document with a CSV parser, then parse column 5 as a JSON
-object and column 6 as a JSON array. The complete diagnostic collection stays
-in that one cell; an empty collection is `[]`. Average dimensions are
+object, column 6 as the channel-count JSON object, and column 7 as a JSON
+array. Empty channel statistics are `{}`. The complete diagnostic collection
+stays in its one cell; an empty collection is `[]`. Average dimensions are
 rendered with two decimal places.
 
 ## Markdown output
 
-Markdown output contains six second-level sections: Overview, Image Formats,
-Invalid Image Diagnostics, Width, Height, and Dataset Size. Image formats are
-alphabetically ordered and uppercased. Diagnostics are path-sorted, use a
-third-level code-formatted path heading, and list every error as a bullet. If
-no supported images or diagnostics are found, their sections contain the same
-empty-state sentences as text output.
+Markdown output contains seven second-level sections: Overview, Image Formats,
+Image Channels, Invalid Image Diagnostics, Width, Height, and Dataset Size.
+Image formats are alphabetically ordered and uppercased. Image Channels is a
+numerically ordered two-column table of decoded channel counts and valid-image
+totals, or the same explicit empty-state sentence as text output. Diagnostics
+are path-sorted, use a third-level code-formatted path heading, and list every
+error as a bullet. If no supported images or diagnostics are found, their
+sections contain the same empty-state sentences as text output.
 
 The Markdown formatter renders the dataset path with `/` separators so saved
 reports are portable across operating systems.

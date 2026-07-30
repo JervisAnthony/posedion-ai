@@ -53,6 +53,11 @@ def create_statistics() -> DatasetStatistics:
             "jpeg": 2,
             "png": 1,
         },
+        channel_counts={
+            10: 1,
+            1: 1,
+            2: 1,
+        },
         invalid_image_diagnostics=[
             InvalidImageDiagnostic(
                 image_path=Path("data/a-corrupt.jpg"),
@@ -110,6 +115,12 @@ def test_format_dataset_summary_json() -> None:
         "png",
         "webp",
     ]
+    assert payload["channel_counts"] == {
+        "1": 1,
+        "2": 1,
+        "10": 1,
+    }
+    assert list(payload["channel_counts"]) == ["1", "2", "10"]
     assert payload["invalid_image_diagnostics"] == [
         {
             "image_path": "data/a-corrupt.jpg",
@@ -120,6 +131,19 @@ def test_format_dataset_summary_json() -> None:
     assert payload["height"]["average"] == 600.0
     assert payload["total_size_bytes"] == 2048
     assert payload["formatted_size"] == "2.00 KB"
+    assert set(payload) == {
+        "dataset_path",
+        "total_images",
+        "valid_images",
+        "invalid_images",
+        "extension_counts",
+        "channel_counts",
+        "invalid_image_diagnostics",
+        "width",
+        "height",
+        "total_size_bytes",
+        "formatted_size",
+    }
 
 
 def test_format_dataset_summary_json_with_no_images() -> None:
@@ -127,6 +151,7 @@ def test_format_dataset_summary_json_with_no_images() -> None:
 
     stats = create_statistics()
     stats.extension_counts = {}
+    stats.channel_counts = {}
     stats.total_images = 0
     stats.valid_images = 0
     stats.invalid_images = 0
@@ -145,6 +170,7 @@ def test_format_dataset_summary_json_with_no_images() -> None:
     )
 
     assert json.loads(result)["extension_counts"] == {}
+    assert json.loads(result)["channel_counts"] == {}
     assert json.loads(result)["invalid_image_diagnostics"] == []
 
 
@@ -209,6 +235,19 @@ def test_main_prints_text_summary(
     assert "WEBP              : 1" in captured.out
     assert captured.out.index("JPEG") < captured.out.index("PNG")
     assert captured.out.index("PNG") < captured.out.index("WEBP")
+    assert "Image Channels" in captured.out
+    assert "1 channel          : 1" in captured.out
+    assert "2 channels         : 1" in captured.out
+    assert "10 channels        : 1" in captured.out
+    assert captured.out.index("1 channel") < captured.out.index(
+        "2 channels"
+    )
+    assert captured.out.index("2 channels") < captured.out.index(
+        "10 channels"
+    )
+    assert captured.out.index("Image Channels") < captured.out.index(
+        "Invalid Image Diagnostics"
+    )
     assert "Invalid Image Diagnostics" in captured.out
     assert "data/a-corrupt.jpg" in captured.out
     assert "  - Image could not be decoded." in captured.out
@@ -259,6 +298,7 @@ def test_main_prints_empty_image_formats(
 
     stats = create_statistics()
     stats.extension_counts = {}
+    stats.channel_counts = {}
     monkeypatch.setattr(
         dataset_summary,
         "analyze_dataset",
@@ -273,10 +313,9 @@ def test_main_prints_empty_image_formats(
 
     assert dataset_summary.main() == 0
 
-    assert (
-        "No supported image files found."
-        in capsys.readouterr().out
-    )
+    output = capsys.readouterr().out
+    assert "No supported image files found." in output
+    assert "No valid image channel data found." in output
 
 
 def test_main_prints_json_summary(
@@ -387,6 +426,7 @@ def test_main_prints_csv_summary(
         "valid_images",
         "invalid_images",
         "extension_counts",
+        "channel_counts",
         "invalid_image_diagnostics",
         "min_width",
         "max_width",
@@ -403,6 +443,7 @@ def test_main_prints_csv_summary(
         "3",
         "1",
         '{"jpeg": 2, "png": 1, "webp": 1}',
+        '{"1": 1, "2": 1, "10": 1}',
         (
             '[{"image_path": "data/a-corrupt.jpg", '
             '"errors": ["Image could not be decoded."]}]'
@@ -850,6 +891,7 @@ def test_main_default_scanning_excludes_nested_images(
     assert payload["total_images"] == 1
     assert payload["valid_images"] == 1
     assert payload["extension_counts"] == {"jpeg": 1}
+    assert payload["channel_counts"] == {"3": 1}
     assert captured.err == ""
 
 
@@ -905,6 +947,7 @@ def test_main_recursive_scanning_includes_nested_valid_images(
         "png": 1,
         "webp": 1,
     }
+    assert payload["channel_counts"] == {"3": 3}
     assert payload["width"] == {
         "minimum": 100,
         "maximum": 140,
@@ -951,6 +994,7 @@ def test_main_recursive_scanning_reports_nested_invalid_image(
     assert payload["valid_images"] == 0
     assert payload["invalid_images"] == 1
     assert payload["extension_counts"] == {"jpeg": 1}
+    assert payload["channel_counts"] == {}
     assert payload["invalid_image_diagnostics"] == [
         {
             "image_path": invalid_image.as_posix(),
@@ -1186,6 +1230,7 @@ def test_main_default_thresholds_reject_small_image(
 
     assert payload["valid_images"] == 0
     assert payload["invalid_images"] == 1
+    assert payload["channel_counts"] == {}
     assert payload["invalid_image_diagnostics"][0]["errors"] == [
         "Width 20px is below minimum 32px.",
         "Height 20px is below minimum 32px.",
@@ -1227,6 +1272,7 @@ def test_main_lower_thresholds_accept_small_image(
 
     assert payload["valid_images"] == 1
     assert payload["invalid_images"] == 0
+    assert payload["channel_counts"] == {"3": 1}
     assert payload["invalid_image_diagnostics"] == []
     assert captured.err == ""
 
@@ -1265,6 +1311,7 @@ def test_main_higher_width_produces_invalid_diagnostic(
 
     assert payload["valid_images"] == 0
     assert payload["invalid_images"] == 1
+    assert payload["channel_counts"] == {}
     assert payload["invalid_image_diagnostics"][0]["errors"] == [
         "Width 50px is below minimum 100px.",
     ]
@@ -1309,6 +1356,7 @@ def test_main_custom_thresholds_apply_recursively(
     assert payload["total_images"] == 1
     assert payload["valid_images"] == 1
     assert payload["invalid_images"] == 0
+    assert payload["channel_counts"] == {"3": 1}
     assert captured.err == ""
 
 

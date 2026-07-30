@@ -90,6 +90,11 @@ def analyze_dataset(
         stats.valid_images += 1
         stats.total_size_bytes += metadata["size_bytes"]
 
+        channels = metadata["channels"]
+        stats.channel_counts[channels] = (
+            stats.channel_counts.get(channels, 0) + 1
+        )
+
         widths.append(metadata["width"])
         heights.append(metadata["height"])
 
@@ -104,5 +109,6 @@ def analyze_dataset(
         stats.average_height = sum(heights) / len(heights)
 
     stats.extension_counts = dict(sorted(stats.extension_counts.items()))
+    stats.channel_counts = dict(sorted(stats.channel_counts.items()))
 
     return stats
