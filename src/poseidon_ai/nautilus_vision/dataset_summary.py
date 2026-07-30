@@ -24,6 +24,7 @@ from poseidon_ai.nautilus_vision.dataset_serialization import (
     serialize_channel_counts,
     serialize_duplicate_images,
     serialize_file_size_statistics,
+    serialize_format_statistics,
     serialize_invalid_image_diagnostics,
     serialize_resolution_statistics,
 )
@@ -52,6 +53,29 @@ def format_dataset_summary(
         )
     else:
         image_formats = "No supported image files found."
+
+    if stats.format_statistics:
+        image_format_sections = []
+        for extension, statistics in sorted(
+            stats.format_statistics.items()
+        ):
+            image_format_sections.append(
+                f"{extension.upper()}\n"
+                f"  Total Images        : {statistics.total_images}\n"
+                f"  Valid Images        : {statistics.valid_images}\n"
+                f"  Invalid Images      : {statistics.invalid_images}\n"
+                "  Total Valid Bytes   : "
+                f"{statistics.total_valid_size_bytes:,}\n"
+                "  Average Valid Bytes : "
+                f"{statistics.average_valid_size_bytes:,.2f}"
+            )
+        image_format_statistics = "\n\n".join(
+            image_format_sections
+        )
+    else:
+        image_format_statistics = (
+            "No image format statistics found."
+        )
 
     if stats.channel_counts:
         image_channel_lines = []
@@ -168,6 +192,10 @@ def format_dataset_summary(
         "-------------\n"
         f"{image_formats}\n"
         "\n"
+        "Image Format Statistics\n"
+        "-----------------------\n"
+        f"{image_format_statistics}\n"
+        "\n"
         "Image Channels\n"
         "--------------\n"
         f"{image_channels}\n"
@@ -223,6 +251,9 @@ def format_dataset_summary_json(
         "invalid_images": stats.invalid_images,
         "extension_counts": dict(
             sorted(stats.extension_counts.items())
+        ),
+        "format_statistics": serialize_format_statistics(
+            stats.format_statistics
         ),
         "channel_counts": serialize_channel_counts(
             stats.channel_counts

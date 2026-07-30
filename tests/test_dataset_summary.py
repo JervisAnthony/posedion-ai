@@ -19,6 +19,7 @@ from poseidon_ai.nautilus_vision.dataset_manifest import (
 from poseidon_ai.nautilus_vision.dataset_statistics import (
     DatasetStatistics,
     DuplicateImageGroup,
+    ImageFormatStatistics,
     InvalidImageDiagnostic,
 )
 from poseidon_ai.nautilus_vision.dataset_summary import (
@@ -73,6 +74,11 @@ def create_statistics() -> DatasetStatistics:
             "webp": 1,
             "jpeg": 2,
             "png": 1,
+        },
+        format_statistics={
+            "webp": ImageFormatStatistics(1, 0, 1, 0, 0.0),
+            "jpeg": ImageFormatStatistics(2, 2, 0, 1_365, 682.5),
+            "png": ImageFormatStatistics(1, 1, 0, 683, 683.0),
         },
         channel_counts={
             10: 1,
@@ -146,6 +152,59 @@ def test_format_dataset_summary_json() -> None:
         "png",
         "webp",
     ]
+    assert payload["format_statistics"] == {
+        "jpeg": {
+            "total_images": 2,
+            "valid_images": 2,
+            "invalid_images": 0,
+            "total_valid_size_bytes": 1_365,
+            "average_valid_size_bytes": 682.5,
+        },
+        "png": {
+            "total_images": 1,
+            "valid_images": 1,
+            "invalid_images": 0,
+            "total_valid_size_bytes": 683,
+            "average_valid_size_bytes": 683.0,
+        },
+        "webp": {
+            "total_images": 1,
+            "valid_images": 0,
+            "invalid_images": 1,
+            "total_valid_size_bytes": 0,
+            "average_valid_size_bytes": 0.0,
+        },
+    }
+    assert list(payload["format_statistics"]) == [
+        "jpeg",
+        "png",
+        "webp",
+    ]
+    assert list(payload["format_statistics"]["jpeg"]) == [
+        "total_images",
+        "valid_images",
+        "invalid_images",
+        "total_valid_size_bytes",
+        "average_valid_size_bytes",
+    ]
+    assert all(
+        isinstance(
+            payload["format_statistics"]["jpeg"][key],
+            int,
+        )
+        for key in (
+            "total_images",
+            "valid_images",
+            "invalid_images",
+            "total_valid_size_bytes",
+        )
+    )
+    assert isinstance(
+        payload["format_statistics"]["jpeg"][
+            "average_valid_size_bytes"
+        ],
+        float,
+    )
     assert payload["channel_counts"] == {
         "1": 1,
         "2": 1,
@@ -254,6 +313,7 @@ def test_format_dataset_summary_json() -> None:
         "valid_images",
         "invalid_images",
         "extension_counts",
+        "format_statistics",
         "channel_counts",
         "resolution_statistics",
         "aspect_ratio_statistics",
@@ -266,6 +326,12 @@ def test_format_dataset_summary_json() -> None:
         "formatted_size",
     }
     payload_keys = list(payload)
+    assert payload_keys.index(
+        "extension_counts"
+    ) < payload_keys.index("format_statistics")
+    assert payload_keys.index(
+        "format_statistics"
+    ) < payload_keys.index("channel_counts")
     assert payload_keys.index(
         "resolution_statistics"
     ) < payload_keys.index("aspect_ratio_statistics")
@@ -282,6 +348,7 @@ def test_format_dataset_summary_json_with_no_images() -> None:
 
     stats = create_statistics()
     stats.extension_counts = {}
+    stats.format_statistics = {}
     stats.channel_counts = {}
     stats.duplicate_image_groups = []
     stats.total_images = 0
@@ -312,6 +379,7 @@ def test_format_dataset_summary_json_with_no_images() -> None:
     )
 
     assert json.loads(result)["extension_counts"] == {}
+    assert json.loads(result)["format_statistics"] == {}
     assert json.loads(result)["channel_counts"] == {}
     assert json.loads(result)["resolution_statistics"] == {
         "minimum_pixels": 0,
@@ -343,6 +411,40 @@ def test_format_dataset_summary_json_with_no_images() -> None:
         "groups": [],
     }
     assert json.loads(result)["invalid_image_diagnostics"] == []
+
+
+def test_format_dataset_summary_json_rounds_format_average() -> None:
+    """Round per-format averages without changing numeric output types."""
+
+    stats = DatasetStatistics(
+        dataset_path=Path("data/sample_dataset"),
+        format_statistics={
+            "jpeg": ImageFormatStatistics(
+                total_images=3,
+                valid_images=3,
+                invalid_images=0,
+                total_valid_size_bytes=1,
+                average_valid_size_bytes=1 / 3,
+            )
+        },
+    )
+
+    payload = json.loads(
+        format_dataset_summary_json(
+            Path("data/sample_dataset"),
+            stats,
+        )
+    )
+
+    assert payload["format_statistics"]["jpeg"][
+        "average_valid_size_bytes"
+    ] == 0.33
+    assert isinstance(
+        payload["format_statistics"]["jpeg"][
+            "average_valid_size_bytes"
+        ],
+        float,
+    )
 
 
 def test_format_dataset_summary_json_sorts_all_diagnostics() -> None:
@@ -406,6 +508,18 @@ def test_main_prints_text_summary(
     assert "WEBP              : 1" in captured.out
     assert captured.out.index("JPEG") < captured.out.index("PNG")
     assert captured.out.index("PNG") < captured.out.index("WEBP")
+    assert "Image Format Statistics" in captured.out
+    assert "  Total Images        : 2" in captured.out
+    assert "  Valid Images        : 2" in captured.out
+    assert "  Invalid Images      : 1" in captured.out
+    assert "  Total Valid Bytes   : 1,365" in captured.out
+    assert "  Average Valid Bytes : 682.50" in captured.out
+    assert captured.out.index(
+        "Image Formats"
+    ) < captured.out.index("Image Format Statistics")
+    assert captured.out.index(
+        "Image Format Statistics"
+    ) < captured.out.index("Image Channels")
     assert "Image Channels" in captured.out
     assert "1 channel          : 1" in captured.out
     assert "2 channels         : 1" in captured.out
@@ -548,6 +662,7 @@ def test_main_prints_empty_image_formats(
 
     stats = create_statistics()
     stats.extension_counts = {}
+    stats.format_statistics = {}
     stats.channel_counts = {}
     monkeypatch.setattr(
         dataset_summary,
@@ -565,6 +680,7 @@ def test_main_prints_empty_image_formats(
 
     output = capsys.readouterr().out
     assert "No supported image files found." in output
+    assert "No image format statistics found." in output
     assert "No valid image channel data found." in output
 
 
@@ -738,6 +854,7 @@ def test_main_prints_csv_summary(
         "valid_images",
         "invalid_images",
         "extension_counts",
+        "format_statistics",
         "channel_counts",
         "resolution_statistics",
         "aspect_ratio_statistics",
@@ -759,6 +876,17 @@ def test_main_prints_csv_summary(
         "3",
         "1",
         '{"jpeg": 2, "png": 1, "webp": 1}',
+        (
+            '{"jpeg": {"total_images": 2, "valid_images": 2, '
+            '"invalid_images": 0, "total_valid_size_bytes": 1365, '
+            '"average_valid_size_bytes": 682.5}, "png": '
+            '{"total_images": 1, "valid_images": 1, '
+            '"invalid_images": 0, "total_valid_size_bytes": 683, '
+            '"average_valid_size_bytes": 683.0}, "webp": '
+            '{"total_images": 1, "valid_images": 0, '
+            '"invalid_images": 1, "total_valid_size_bytes": 0, '
+            '"average_valid_size_bytes": 0.0}}'
+        ),
         '{"1": 1, "2": 1, "10": 1}',
         (
             '{"minimum_pixels": 307200, '
@@ -1623,6 +1751,13 @@ def test_main_default_thresholds_reject_small_image(
 
     assert payload["valid_images"] == 0
     assert payload["invalid_images"] == 1
+    assert payload["format_statistics"]["png"] == {
+        "total_images": 1,
+        "valid_images": 0,
+        "invalid_images": 1,
+        "total_valid_size_bytes": 0,
+        "average_valid_size_bytes": 0.0,
+    }
     assert payload["channel_counts"] == {}
     assert payload["resolution_statistics"]["minimum_pixels"] == 0
     assert payload["resolution_statistics"]["maximum_pixels"] == 0
@@ -1668,6 +1803,14 @@ def test_main_lower_thresholds_accept_small_image(
 
     assert payload["valid_images"] == 1
     assert payload["invalid_images"] == 0
+    image_size = (tmp_path / "small.png").stat().st_size
+    assert payload["format_statistics"]["png"] == {
+        "total_images": 1,
+        "valid_images": 1,
+        "invalid_images": 0,
+        "total_valid_size_bytes": image_size,
+        "average_valid_size_bytes": float(image_size),
+    }
     assert payload["channel_counts"] == {"3": 1}
     assert payload["resolution_statistics"] == {
         "minimum_pixels": 400,
@@ -2074,6 +2217,23 @@ def test_main_writes_recursive_manifest_and_json_report(
     assert report["total_images"] == 3
     assert report["valid_images"] == 2
     assert report["invalid_images"] == 1
+    source_size = source_path.stat().st_size
+    assert report["format_statistics"] == {
+        "jpeg": {
+            "total_images": 1,
+            "valid_images": 0,
+            "invalid_images": 1,
+            "total_valid_size_bytes": 0,
+            "average_valid_size_bytes": 0.0,
+        },
+        "png": {
+            "total_images": 2,
+            "valid_images": 2,
+            "invalid_images": 0,
+            "total_valid_size_bytes": source_size * 2,
+            "average_valid_size_bytes": float(source_size),
+        },
+    }
     assert report["duplicate_images"]["group_count"] == 1
     assert report["aspect_ratio_statistics"] == {
         "minimum": 1.0,
@@ -2085,7 +2245,6 @@ def test_main_writes_recursive_manifest_and_json_report(
             "square": 2,
         },
     }
-    source_size = source_path.stat().st_size
     assert report["file_size_statistics"] == {
         "minimum_bytes": source_size,
         "maximum_bytes": source_size,
@@ -2099,6 +2258,8 @@ def test_main_writes_recursive_manifest_and_json_report(
         "duplicate_group_sha256"
     ] == digest
     assert records_by_path["nested/broken.jpg"]["is_valid"] is False
+    assert all(len(record) == 11 for record in records)
+    assert all("format_statistics" not in record for record in records)
     assert captured.out == ""
     assert captured.err == ""
 

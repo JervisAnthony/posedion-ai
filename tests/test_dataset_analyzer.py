@@ -46,6 +46,7 @@ def test_analyze_empty_dataset(tmp_path: Path) -> None:
     assert stats.valid_images == 0
     assert stats.invalid_images == 0
     assert stats.extension_counts == {}
+    assert stats.format_statistics == {}
     assert stats.channel_counts == {}
     assert stats.min_pixel_count == 0
     assert stats.max_pixel_count == 0
@@ -67,6 +68,9 @@ def test_analyze_single_valid_image(
     assert stats.valid_images == 1
     assert stats.invalid_images == 0
     assert stats.extension_counts == {"jpeg": 1}
+    assert stats.format_statistics["jpeg"].total_images == 1
+    assert stats.format_statistics["jpeg"].valid_images == 1
+    assert stats.format_statistics["jpeg"].invalid_images == 0
     assert stats.channel_counts == {3: 1}
     assert sum(stats.channel_counts.values()) == stats.valid_images
     assert sum(stats.extension_counts.values()) == stats.total_images
@@ -102,6 +106,13 @@ def test_analyze_mixed_valid_and_invalid_images(
     assert stats.valid_images == 1
     assert stats.invalid_images == 1
     assert stats.extension_counts == {"jpeg": 2}
+    assert stats.format_statistics["jpeg"].total_images == 2
+    assert stats.format_statistics["jpeg"].valid_images == 1
+    assert stats.format_statistics["jpeg"].invalid_images == 1
+    assert (
+        stats.format_statistics["jpeg"].total_valid_size_bytes
+        == stats.total_size_bytes
+    )
     assert stats.channel_counts == {3: 1}
     assert sum(stats.channel_counts.values()) == stats.valid_images
     assert sum(stats.extension_counts.values()) == stats.total_images
@@ -1363,3 +1374,244 @@ def test_manifest_analysis_reuses_metadata_size_without_extra_stat(
     assert result.manifest_entries[0].size_bytes == 1_234
     assert ".stat(" not in analyzer_source
     assert "os.stat" not in analyzer_source
+
+
+def test_analyze_aggregates_normalized_format_statistics(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Aggregate aliases, validity, and controlled bytes independently."""
+
+    valid_paths = [
+        tmp_path / "a.jpg",
+        tmp_path / "b.jpeg",
+        tmp_path / "c.png",
+        tmp_path / "d.tif",
+        tmp_path / "e.tiff",
+    ]
+    for image_path in valid_paths:
+        create_test_image(image_path)
+
+    (tmp_path / "broken.jpg").write_bytes(b"not an image")
+    (tmp_path / "broken.tif").write_bytes(b"not an image")
+    (tmp_path / "ignored.txt").write_text(
+        "unsupported",
+        encoding="utf-8",
+    )
+    controlled_sizes = {
+        "a.jpg": 1_001,
+        "b.jpeg": 2_000,
+        "c.png": 3_000,
+        "d.tif": 4_001,
+        "e.tiff": 5_000,
+    }
+    metadata_calls: list[Path] = []
+
+    def controlled_metadata(image_path: Path) -> dict:
+        metadata_calls.append(image_path)
+        metadata = get_image_metadata(image_path)
+        metadata["size_bytes"] = controlled_sizes[image_path.name]
+        return metadata
+
+    monkeypatch.setattr(
+        dataset_analyzer,
+        "get_image_metadata",
+        controlled_metadata,
+    )
+
+    stats = analyze_dataset(tmp_path)
+
+    assert metadata_calls == valid_paths
+    assert stats.extension_counts == {
+        "jpeg": 3,
+        "png": 1,
+        "tiff": 3,
+    }
+    assert list(stats.format_statistics) == ["jpeg", "png", "tiff"]
+    jpeg = stats.format_statistics["jpeg"]
+    png = stats.format_statistics["png"]
+    tiff = stats.format_statistics["tiff"]
+    assert (
+        jpeg.total_images,
+        jpeg.valid_images,
+        jpeg.invalid_images,
+        jpeg.total_valid_size_bytes,
+        jpeg.average_valid_size_bytes,
+    ) == (3, 2, 1, 3_001, 1_500.5)
+    assert (
+        png.total_images,
+        png.valid_images,
+        png.invalid_images,
+        png.total_valid_size_bytes,
+        png.average_valid_size_bytes,
+    ) == (1, 1, 0, 3_000, 3_000.0)
+    assert (
+        tiff.total_images,
+        tiff.valid_images,
+        tiff.invalid_images,
+        tiff.total_valid_size_bytes,
+        tiff.average_valid_size_bytes,
+    ) == (3, 2, 1, 9_001, 4_500.5)
+    assert stats.total_images == 7
+    assert stats.valid_images == 5
+    assert stats.invalid_images == 2
+    assert stats.total_size_bytes == 15_002
+    assert stats.channel_counts == {3: 5}
+    assert stats.min_width == stats.max_width == 100
+    assert stats.min_height == stats.max_height == 100
+    assert stats.min_pixel_count == stats.max_pixel_count == 10_000
+    assert stats.min_aspect_ratio == stats.max_aspect_ratio == 1.0
+    assert stats.orientation_counts == {
+        "landscape": 0,
+        "portrait": 0,
+        "square": 5,
+    }
+    assert stats.min_file_size_bytes == 1_001
+    assert stats.max_file_size_bytes == 5_000
+    assert stats.average_file_size_bytes == 3_000.4
+    assert set(stats.format_statistics) == set(stats.extension_counts)
+    assert sum(
+        item.total_images
+        for item in stats.format_statistics.values()
+    ) == stats.total_images
+    assert sum(
+        item.valid_images
+        for item in stats.format_statistics.values()
+    ) == stats.valid_images
+    assert sum(
+        item.invalid_images
+        for item in stats.format_statistics.values()
+    ) == stats.invalid_images
+    assert sum(
+        item.total_valid_size_bytes
+        for item in stats.format_statistics.values()
+    ) == stats.total_size_bytes
+    assert all(
+        item.total_images == item.valid_images + item.invalid_images
+        for item in stats.format_statistics.values()
+    )
+
+
+def test_analyze_invalid_only_and_unsupported_format_statistics(
+    tmp_path: Path,
+) -> None:
+    """Retain invalid supported formats and ignore unsupported files."""
+
+    (tmp_path / "broken.jpg").write_bytes(b"not an image")
+    (tmp_path / "ignored.txt").write_text(
+        "unsupported",
+        encoding="utf-8",
+    )
+
+    stats = analyze_dataset(tmp_path)
+    jpeg = stats.format_statistics["jpeg"]
+
+    assert stats.extension_counts == {"jpeg": 1}
+    assert list(stats.format_statistics) == ["jpeg"]
+    assert jpeg.total_images == 1
+    assert jpeg.valid_images == 0
+    assert jpeg.invalid_images == 1
+    assert jpeg.total_valid_size_bytes == 0
+    assert jpeg.average_valid_size_bytes == 0.0
+    assert stats.total_size_bytes == 0
+
+
+def test_analyze_recursive_threshold_format_statistics(
+    tmp_path: Path,
+) -> None:
+    """Apply recursion and thresholds before per-format aggregation."""
+
+    nested_directory = tmp_path / "nested"
+    nested_directory.mkdir()
+    image_path = nested_directory / "small.jpg"
+    create_test_image(image_path, width=20, height=20)
+    expected_size = image_path.stat().st_size
+
+    top_level = analyze_dataset(tmp_path)
+    recursive_default = analyze_dataset(tmp_path, recursive=True)
+    recursive_lowered = analyze_dataset(
+        tmp_path,
+        recursive=True,
+        min_width=10,
+        min_height=10,
+    )
+
+    assert top_level.format_statistics == {}
+    assert recursive_default.format_statistics[
+        "jpeg"
+    ].invalid_images == 1
+    assert recursive_default.format_statistics[
+        "jpeg"
+    ].total_valid_size_bytes == 0
+    accepted = recursive_lowered.format_statistics["jpeg"]
+    assert accepted.total_images == 1
+    assert accepted.valid_images == 1
+    assert accepted.invalid_images == 0
+    assert accepted.total_valid_size_bytes == expected_size
+    assert accepted.average_valid_size_bytes == expected_size
+
+
+def test_analyze_counts_duplicate_format_members_individually(
+    tmp_path: Path,
+) -> None:
+    """Count byte-identical alias members as separate JPEG candidates."""
+
+    source_path = tmp_path / "source.jpg"
+    copy_path = tmp_path / "copy.jpeg"
+    create_test_image(source_path)
+    copyfile(source_path, copy_path)
+    expected_size = source_path.stat().st_size
+
+    stats = analyze_dataset(tmp_path)
+    jpeg = stats.format_statistics["jpeg"]
+
+    assert stats.extension_counts == {"jpeg": 2}
+    assert jpeg.total_images == 2
+    assert jpeg.valid_images == 2
+    assert jpeg.invalid_images == 0
+    assert jpeg.total_valid_size_bytes == expected_size * 2
+    assert jpeg.average_valid_size_bytes == expected_size
+    assert stats.total_size_bytes == expected_size * 2
+    assert stats.duplicate_group_count == 1
+    assert stats.duplicate_file_count == 2
+
+
+def test_manifest_analysis_preserves_format_statistics_and_schema(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Produce aggregate format data and unchanged entries in one pass."""
+
+    valid_path = tmp_path / "valid.jpg"
+    invalid_path = tmp_path / "broken.jpeg"
+    create_test_image(valid_path)
+    invalid_path.write_bytes(b"not an image")
+    metadata_calls: list[Path] = []
+
+    def tracked_metadata(image_path: Path) -> dict:
+        metadata_calls.append(image_path)
+        return get_image_metadata(image_path)
+
+    monkeypatch.setattr(
+        dataset_analyzer,
+        "get_image_metadata",
+        tracked_metadata,
+    )
+
+    result = analyze_dataset_with_manifest(tmp_path)
+    jpeg = result.statistics.format_statistics["jpeg"]
+
+    assert metadata_calls == [valid_path]
+    assert jpeg.total_images == 2
+    assert jpeg.valid_images == 1
+    assert jpeg.invalid_images == 1
+    assert (
+        jpeg.total_valid_size_bytes
+        == result.statistics.total_size_bytes
+    )
+    assert len(result.manifest_entries) == 2
+    assert {
+        entry.extension
+        for entry in result.manifest_entries
+    } == {"jpeg"}
+    assert not hasattr(result.manifest_entries[0], "format_statistics")

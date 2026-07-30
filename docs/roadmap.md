@@ -18,6 +18,8 @@ exploratory entries are not delivery commitments and have no assigned dates.
 - Aspect-ratio-preserving letterbox preprocessing
 - Dataset totals, valid/invalid counts, dimensions, and valid-image size
 - Normalized image-extension statistics
+- Per-format total, valid, invalid, total-valid-byte, and average-valid-byte
+  statistics across every aggregate report format
 - Decoded valid-image channel distribution statistics across all report
   formats
 - Valid-image pixel-area and megapixel statistics across every report format

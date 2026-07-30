@@ -1,8 +1,12 @@
+from dataclasses import FrozenInstanceError
 from pathlib import Path
+
+import pytest
 
 from poseidon_ai.nautilus_vision.dataset_statistics import (
     DatasetStatistics,
     DuplicateImageGroup,
+    ImageFormatStatistics,
     InvalidImageDiagnostic,
 )
 
@@ -31,6 +35,7 @@ def test_dataset_statistics_defaults() -> None:
     assert stats.max_file_size_bytes == 0
     assert stats.average_file_size_bytes == 0.0
     assert stats.extension_counts == {}
+    assert stats.format_statistics == {}
     assert stats.channel_counts == {}
     assert stats.orientation_counts == {}
     assert stats.duplicate_image_groups == []
@@ -49,6 +54,38 @@ def test_extension_counts_default_is_not_shared() -> None:
     first.extension_counts["jpeg"] = 1
 
     assert second.extension_counts == {}
+
+
+def test_format_statistics_default_is_not_shared() -> None:
+    """Each DatasetStatistics instance should own its format statistics."""
+
+    first = DatasetStatistics(dataset_path=Path("first"))
+    second = DatasetStatistics(dataset_path=Path("second"))
+
+    first.format_statistics["jpeg"] = ImageFormatStatistics(
+        total_images=1,
+        valid_images=1,
+        invalid_images=0,
+        total_valid_size_bytes=1_024,
+        average_valid_size_bytes=1_024.0,
+    )
+
+    assert second.format_statistics == {}
+
+
+def test_image_format_statistics_is_immutable() -> None:
+    """Keep completed per-format aggregates immutable."""
+
+    statistics = ImageFormatStatistics(
+        total_images=1,
+        valid_images=1,
+        invalid_images=0,
+        total_valid_size_bytes=1_024,
+        average_valid_size_bytes=1_024.0,
+    )
+
+    with pytest.raises(FrozenInstanceError):
+        statistics.valid_images = 2
 
 
 def test_channel_counts_default_is_not_shared() -> None:

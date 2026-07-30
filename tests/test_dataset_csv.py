@@ -9,6 +9,7 @@ from poseidon_ai.nautilus_vision.dataset_csv import (
 from poseidon_ai.nautilus_vision.dataset_statistics import (
     DatasetStatistics,
     DuplicateImageGroup,
+    ImageFormatStatistics,
     InvalidImageDiagnostic,
 )
 
@@ -45,6 +46,11 @@ def create_statistics() -> DatasetStatistics:
             "webp": 1,
             "jpeg": 2,
             "png": 1,
+        },
+        format_statistics={
+            "webp": ImageFormatStatistics(1, 0, 1, 0, 0.0),
+            "jpeg": ImageFormatStatistics(2, 2, 0, 1_365, 682.5),
+            "png": ImageFormatStatistics(1, 1, 0, 683, 683.0),
         },
         channel_counts={
             10: 1,
@@ -88,6 +94,7 @@ def test_format_dataset_csv() -> None:
         "valid_images",
         "invalid_images",
         "extension_counts",
+        "format_statistics",
         "channel_counts",
         "resolution_statistics",
         "aspect_ratio_statistics",
@@ -112,12 +119,56 @@ def test_format_dataset_csv() -> None:
         "webp": 1,
     }
     assert json.loads(values[5]) == {
+        "jpeg": {
+            "total_images": 2,
+            "valid_images": 2,
+            "invalid_images": 0,
+            "total_valid_size_bytes": 1_365,
+            "average_valid_size_bytes": 682.5,
+        },
+        "png": {
+            "total_images": 1,
+            "valid_images": 1,
+            "invalid_images": 0,
+            "total_valid_size_bytes": 683,
+            "average_valid_size_bytes": 683.0,
+        },
+        "webp": {
+            "total_images": 1,
+            "valid_images": 0,
+            "invalid_images": 1,
+            "total_valid_size_bytes": 0,
+            "average_valid_size_bytes": 0.0,
+        },
+    }
+    assert list(json.loads(values[5])) == ["jpeg", "png", "webp"]
+    assert list(json.loads(values[5])["jpeg"]) == [
+        "total_images",
+        "valid_images",
+        "invalid_images",
+        "total_valid_size_bytes",
+        "average_valid_size_bytes",
+    ]
+    assert all(
+        isinstance(json.loads(values[5])["jpeg"][key], int)
+        for key in (
+            "total_images",
+            "valid_images",
+            "invalid_images",
+            "total_valid_size_bytes",
+        )
+    )
+    assert isinstance(
+        json.loads(values[5])["jpeg"]["average_valid_size_bytes"],
+        float,
+    )
+    assert json.loads(values[6]) == {
         "1": 1,
         "2": 1,
         "10": 1,
     }
-    assert list(json.loads(values[5])) == ["1", "2", "10"]
-    assert json.loads(values[6]) == {
+    assert list(json.loads(values[6])) == ["1", "2", "10"]
+    assert json.loads(values[7]) == {
         "minimum_pixels": 307_200,
         "maximum_pixels": 2_073_600,
         "average_pixels": 1_190_400.0,
@@ -125,7 +176,7 @@ def test_format_dataset_csv() -> None:
         "maximum_megapixels": 2.0736,
         "average_megapixels": 1.1904,
     }
-    assert json.loads(values[7]) == {
+    assert json.loads(values[8]) == {
         "minimum": 0.5,
         "maximum": 2.0,
         "average": 1.166667,
@@ -136,26 +187,26 @@ def test_format_dataset_csv() -> None:
         },
     }
     assert list(
-        json.loads(values[7])["orientation_counts"]
+        json.loads(values[8])["orientation_counts"]
     ) == ["landscape", "portrait", "square"]
     assert all(
-        isinstance(json.loads(values[7])[key], float)
+        isinstance(json.loads(values[8])[key], float)
         for key in ("minimum", "maximum", "average")
     )
-    assert json.loads(values[8]) == {
+    assert json.loads(values[9]) == {
         "minimum_bytes": 256,
         "maximum_bytes": 1024,
         "average_bytes": 682.67,
     }
-    assert list(json.loads(values[8])) == [
+    assert list(json.loads(values[9])) == [
         "minimum_bytes",
         "maximum_bytes",
         "average_bytes",
     ]
-    assert isinstance(json.loads(values[8])["minimum_bytes"], int)
-    assert isinstance(json.loads(values[8])["maximum_bytes"], int)
-    assert isinstance(json.loads(values[8])["average_bytes"], float)
-    assert json.loads(values[9]) == {
+    assert isinstance(json.loads(values[9])["minimum_bytes"], int)
+    assert isinstance(json.loads(values[9])["maximum_bytes"], int)
+    assert isinstance(json.loads(values[9])["average_bytes"], float)
+    assert json.loads(values[10]) == {
         "group_count": 1,
         "file_count": 3,
         "redundant_copy_count": 2,
@@ -170,19 +221,19 @@ def test_format_dataset_csv() -> None:
             }
         ],
     }
-    assert json.loads(values[10]) == [
+    assert json.loads(values[11]) == [
         {
             "image_path": "data/a-corrupt.jpg",
             "errors": ["Image could not be decoded."],
         }
     ]
-    assert values[11] == "640"
-    assert values[12] == "1280"
-    assert values[13] == "906.67"
-    assert values[14] == "480"
-    assert values[15] == "720"
-    assert values[16] == "600.00"
-    assert values[17] == "2048"
+    assert values[12] == "640"
+    assert values[13] == "1280"
+    assert values[14] == "906.67"
+    assert values[15] == "480"
+    assert values[16] == "720"
+    assert values[17] == "600.00"
+    assert values[18] == "2048"
 
 
 def test_format_dataset_csv_escapes_extension_json() -> None:
@@ -201,6 +252,40 @@ def test_format_dataset_csv_escapes_extension_json() -> None:
         "png": 1,
         "webp": 1,
     }
+
+
+def test_format_dataset_csv_rounds_format_average() -> None:
+    """Round the numeric per-format average inside one JSON cell."""
+
+    stats = DatasetStatistics(
+        dataset_path=Path("data/sample_dataset"),
+        format_statistics={
+            "jpeg": ImageFormatStatistics(
+                total_images=3,
+                valid_images=3,
+                invalid_images=0,
+                total_valid_size_bytes=1,
+                average_valid_size_bytes=1 / 3,
+            )
+        },
+    )
+
+    rows = list(
+        csv.reader(
+            io.StringIO(
+                format_dataset_csv(
+                    Path("data/sample_dataset"),
+                    stats,
+                )
+            )
+        )
+    )
+    average = json.loads(rows[1][5])["jpeg"][
+        "average_valid_size_bytes"
+    ]
+
+    assert average == 0.33
+    assert isinstance(average, float)
 
 
 def test_format_dataset_csv_escapes_and_sorts_diagnostics() -> None:
@@ -228,7 +313,7 @@ def test_format_dataset_csv_escapes_and_sorts_diagnostics() -> None:
     rows = list(csv.reader(io.StringIO(result)))
 
     assert len(rows) == 2
-    assert json.loads(rows[1][10]) == [
+    assert json.loads(rows[1][11]) == [
         {
             "image_path": "data/a-corrupt.jpg",
             "errors": ["Image could not be decoded."],
@@ -248,6 +333,7 @@ def test_format_dataset_csv_with_no_images() -> None:
 
     stats = create_statistics()
     stats.extension_counts = {}
+    stats.format_statistics = {}
     stats.channel_counts = {}
     stats.duplicate_image_groups = []
     stats.total_images = 0
@@ -281,7 +367,8 @@ def test_format_dataset_csv_with_no_images() -> None:
 
     assert json.loads(rows[1][4]) == {}
     assert json.loads(rows[1][5]) == {}
-    assert json.loads(rows[1][6]) == {
+    assert json.loads(rows[1][6]) == {}
+    assert json.loads(rows[1][7]) == {
         "minimum_pixels": 0,
         "maximum_pixels": 0,
         "average_pixels": 0.0,
@@ -289,7 +376,7 @@ def test_format_dataset_csv_with_no_images() -> None:
         "maximum_megapixels": 0.0,
         "average_megapixels": 0.0,
     }
-    assert json.loads(rows[1][7]) == {
+    assert json.loads(rows[1][8]) == {
         "minimum": 0.0,
         "maximum": 0.0,
         "average": 0.0,
@@ -299,18 +386,18 @@ def test_format_dataset_csv_with_no_images() -> None:
             "square": 0,
         },
     }
-    assert json.loads(rows[1][8]) == {
+    assert json.loads(rows[1][9]) == {
         "minimum_bytes": 0,
         "maximum_bytes": 0,
         "average_bytes": 0.0,
     }
-    assert json.loads(rows[1][9]) == {
+    assert json.loads(rows[1][10]) == {
         "group_count": 0,
         "file_count": 0,
         "redundant_copy_count": 0,
         "groups": [],
     }
-    assert json.loads(rows[1][10]) == []
+    assert json.loads(rows[1][11]) == []
 
 
 def test_format_dataset_csv_fills_missing_orientation_categories() -> None:
@@ -329,7 +416,7 @@ def test_format_dataset_csv_fills_missing_orientation_categories() -> None:
             )
         )
     )
-    orientation_counts = json.loads(rows[1][7])[
+    orientation_counts = json.loads(rows[1][8])[
         "orientation_counts"
     ]
 

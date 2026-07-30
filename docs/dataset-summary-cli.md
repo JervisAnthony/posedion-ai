@@ -178,10 +178,10 @@ paths, permission failures, and other expected write errors return status 1
 with a concise standard-error message and no traceback. The CLI does not
 print the aggregate report after a manifest write failure.
 
-Aspect-ratio, orientation, and file-size statistics are aggregate-report
-fields only. The eleven-key JSONL manifest schema remains unchanged because
-its existing decoded `width`, `height`, and `size_bytes` values already expose
-the per-file inputs.
+Aspect-ratio, orientation, file-size, and per-format statistics are
+aggregate-report fields only. The eleven-key JSONL manifest schema remains
+unchanged because its existing normalized `extension`, decoded `width` and
+`height`, and `size_bytes` values already expose the per-file inputs.
 
 ## Recursive scanning
 
@@ -230,10 +230,11 @@ poseidon-dataset-summary data/sample_dataset --recursive --min-width 64 --min-he
 
 Images that fail custom thresholds remain successful dataset-analysis
 results. Their width and height errors appear in invalid-image diagnostics;
-they do not contribute to channel, resolution, aspect-ratio, orientation, or
-file-size statistics and are ineligible for duplicate detection. They are
-not operational CLI failures. Zero, negative, or non-integer option values
-are argparse usage errors and return status 2.
+they contribute to per-format total and invalid counts but not per-format
+valid counts or bytes. They do not contribute to channel, resolution,
+aspect-ratio, orientation, or file-size statistics and are ineligible for
+duplicate detection. They are not operational CLI failures. Zero, negative,
+or non-integer option values are argparse usage errors and return status 2.
 
 Threshold values affect validation only. They are not included in the text,
 JSON, CSV, or Markdown report schemas.
@@ -244,15 +245,16 @@ Text output includes:
 
 1. dataset path and image counts;
 2. alphabetically ordered, uppercase image-format counts;
-3. numerically ordered decoded channel counts for valid images;
-4. valid-image minimum, maximum, and average pixel-area and megapixel values;
-5. valid-image aspect-ratio statistics and orientation counts;
-6. valid-image minimum, maximum, and average file sizes;
-7. exact duplicate groups and derived counts;
-8. invalid-image paths with every validation error;
-9. valid-image width statistics;
-10. valid-image height statistics;
-11. valid-image dataset size in human-readable units.
+3. per-format total, valid, invalid, and valid-byte statistics;
+4. numerically ordered decoded channel counts for valid images;
+5. valid-image minimum, maximum, and average pixel-area and megapixel values;
+6. valid-image aspect-ratio statistics and orientation counts;
+7. valid-image minimum, maximum, and average file sizes;
+8. exact duplicate groups and derived counts;
+9. invalid-image paths with every validation error;
+10. valid-image width statistics;
+11. valid-image height statistics;
+12. valid-image dataset size in human-readable units.
 
 An empty candidate set displays `No supported image files found.` and zero
 dimension and size values. When there are no diagnostics, the diagnostics
@@ -264,6 +266,23 @@ displays `No valid image aspect ratio data found.` The Image File Sizes
 section displays `No valid image file size data found.` Human-readable pixel,
 ratio, and byte values use thousands separators and two decimal places where
 applicable.
+
+Image Format Statistics appears after Image Formats. Normalized formats are
+alphabetically ordered and uppercased. Invalid supported candidates
+contribute to total and invalid counts but never valid bytes. Exact duplicate
+files contribute independently. With no supported candidates, the section
+displays `No image format statistics found.`
+
+```text
+Image Format Statistics
+-----------------------
+JPEG
+  Total Images        : 4
+  Valid Images        : 3
+  Invalid Images      : 1
+  Total Valid Bytes   : 12,288
+  Average Valid Bytes : 4,096.00
+```
 
 ```text
 Image Resolution
@@ -338,6 +357,22 @@ When there are no duplicate groups, the section displays
     "jpeg": 2,
     "png": 1
   },
+  "format_statistics": {
+    "jpeg": {
+      "total_images": 2,
+      "valid_images": 1,
+      "invalid_images": 1,
+      "total_valid_size_bytes": 512,
+      "average_valid_size_bytes": 512.0
+    },
+    "png": {
+      "total_images": 1,
+      "valid_images": 1,
+      "invalid_images": 0,
+      "total_valid_size_bytes": 1536,
+      "average_valid_size_bytes": 1536.0
+    }
+  },
   "channel_counts": {
     "3": 2
   },
@@ -403,7 +438,16 @@ When there are no duplicate groups, the section displays
 
 Numbers remain JSON numbers. `extension_counts` is an alphabetically ordered
 object with normalized lowercase keys. It counts supported candidates,
-including invalid ones. `channel_counts` is numerically ordered before its
+including invalid ones. `format_statistics` uses the same normalized aliases,
+including `jpg` as `jpeg` and `tif` as `tiff`, and is alphabetically ordered.
+Each format contains `total_images`, `valid_images`, `invalid_images`,
+`total_valid_size_bytes`, and `average_valid_size_bytes` in that order.
+Counts and totals remain integers; the numeric average is rounded to two
+decimal places. Invalid images contribute to candidate and invalid counts but
+not valid bytes. Recursive candidates contribute when enabled, thresholds
+can move candidates between valid and invalid counts, and duplicate files
+contribute independently. With no supported candidates the value is `{}`.
+`channel_counts` is numerically ordered before its
 integer model keys are explicitly converted to textual JSON object keys; its
 values remain JSON numbers. It counts only valid images and is `{}` when no
 valid images exist. Width, height, and size fields also describe valid images.
@@ -498,7 +542,7 @@ file bytes match.
 
 ## CSV schema
 
-The CSV report contains a header and one data row with these eighteen stable
+The CSV report contains a header and one data row with these nineteen stable
 columns:
 
 | Position | Column |
@@ -508,46 +552,51 @@ columns:
 | 3 | `valid_images` |
 | 4 | `invalid_images` |
 | 5 | `extension_counts` |
-| 6 | `channel_counts` |
-| 7 | `resolution_statistics` |
-| 8 | `aspect_ratio_statistics` |
-| 9 | `file_size_statistics` |
-| 10 | `duplicate_images` |
-| 11 | `invalid_image_diagnostics` |
-| 12 | `min_width` |
-| 13 | `max_width` |
-| 14 | `average_width` |
-| 15 | `min_height` |
-| 16 | `max_height` |
-| 17 | `average_height` |
-| 18 | `total_size_bytes` |
+| 6 | `format_statistics` |
+| 7 | `channel_counts` |
+| 8 | `resolution_statistics` |
+| 9 | `aspect_ratio_statistics` |
+| 10 | `file_size_statistics` |
+| 11 | `duplicate_images` |
+| 12 | `invalid_image_diagnostics` |
+| 13 | `min_width` |
+| 14 | `max_width` |
+| 15 | `average_width` |
+| 16 | `min_height` |
+| 17 | `max_height` |
+| 18 | `average_height` |
+| 19 | `total_size_bytes` |
 
-`extension_counts`, `channel_counts`, `resolution_statistics`,
-`aspect_ratio_statistics`, `file_size_statistics`, and `duplicate_images` are
-JSON objects stored in separate CSV fields:
+`extension_counts`, `format_statistics`, `channel_counts`,
+`resolution_statistics`, `aspect_ratio_statistics`, `file_size_statistics`,
+and `duplicate_images` are JSON objects stored in separate CSV fields:
 
 ```csv
-data/sample_dataset,3,2,1,"{""jpeg"": 2, ""png"": 1}","{""3"": 2}","{""minimum_pixels"": 307200, ""maximum_pixels"": 2073600, ""average_pixels"": 1190400.0, ""minimum_megapixels"": 0.3072, ""maximum_megapixels"": 2.0736, ""average_megapixels"": 1.1904}","{""minimum"": 0.5, ""maximum"": 2.0, ""average"": 1.25, ""orientation_counts"": {""landscape"": 1, ""portrait"": 1, ""square"": 0}}","{""minimum_bytes"": 512, ""maximum_bytes"": 1536, ""average_bytes"": 1024.0}","{""group_count"": 0, ""file_count"": 0, ""redundant_copy_count"": 0, ""groups"": []}","[{""image_path"": ""data/a-corrupt.jpg"", ""errors"": [""Image could not be decoded.""]}]",640,1280,960.00,480,720,600.00,2048
+data/sample_dataset,3,2,1,"{""jpeg"": 2, ""png"": 1}","{""jpeg"": {""total_images"": 2, ""valid_images"": 1, ""invalid_images"": 1, ""total_valid_size_bytes"": 512, ""average_valid_size_bytes"": 512.0}, ""png"": {""total_images"": 1, ""valid_images"": 1, ""invalid_images"": 0, ""total_valid_size_bytes"": 1536, ""average_valid_size_bytes"": 1536.0}}","{""3"": 2}","{""minimum_pixels"": 307200, ""maximum_pixels"": 2073600, ""average_pixels"": 1190400.0, ""minimum_megapixels"": 0.3072, ""maximum_megapixels"": 2.0736, ""average_megapixels"": 1.1904}","{""minimum"": 0.5, ""maximum"": 2.0, ""average"": 1.25, ""orientation_counts"": {""landscape"": 1, ""portrait"": 1, ""square"": 0}}","{""minimum_bytes"": 512, ""maximum_bytes"": 1536, ""average_bytes"": 1024.0}","{""group_count"": 0, ""file_count"": 0, ""redundant_copy_count"": 0, ""groups"": []}","[{""image_path"": ""data/a-corrupt.jpg"", ""errors"": [""Image could not be decoded.""]}]",640,1280,960.00,480,720,600.00,2048
 ```
 
 CSV quoting is produced by Python's standard-library `csv.writer`. Consumers
 should parse the document with a CSV parser, then parse column 5 as a JSON
-object, column 6 as the channel-count JSON object, column 7 as the
-resolution-statistics JSON object, column 8 as the aspect-ratio-statistics
-JSON object, column 9 as the file-size-statistics JSON object, column 10 as the
-duplicate-images JSON object, and column 11 as a JSON array. Empty channel
-statistics are `{}`; resolution, aspect-ratio, and file-size statistics retain
-their explicit zero-valued objects, and duplicate images use the explicit
-zero-count structure with an empty `groups` array. The complete diagnostic
-collection stays in its one cell; an empty collection is `[]`. Average
-dimensions are rendered with two decimal places.
+object, column 6 as the format-statistics JSON object, column 7 as the
+channel-count JSON object, column 8 as the resolution-statistics JSON object,
+column 9 as the aspect-ratio-statistics JSON object, column 10 as the
+file-size-statistics JSON object, column 11 as the duplicate-images JSON
+object, and column 12 as a JSON array. Empty format and channel statistics are
+`{}`; resolution, aspect-ratio, and file-size statistics retain their explicit
+zero-valued objects, and duplicate images use the explicit zero-count
+structure with an empty `groups` array. The complete diagnostic collection
+stays in its one cell; an empty collection is `[]`. Average dimensions are
+rendered with two decimal places.
 
 ## Markdown output
 
-Markdown output contains eleven second-level sections: Overview, Image
-Formats, Image Channels, Image Resolution, Image Aspect Ratios, Image File
-Sizes, Exact Duplicate Images, Invalid Image Diagnostics, Width, Height, and
-Dataset Size. Image formats are alphabetically ordered and uppercased.
+Markdown output contains twelve second-level sections: Overview, Image
+Formats, Image Format Statistics, Image Channels, Image Resolution, Image
+Aspect Ratios, Image File Sizes, Exact Duplicate Images, Invalid Image
+Diagnostics, Width, Height, and Dataset Size. Image formats are alphabetically
+ordered and uppercased. Image Format Statistics is an alphabetically ordered
+table with total, valid, invalid, total-valid-byte, and average-valid-byte
+columns. Bytes use thousands separators and averages use two decimal places.
 Image Channels is a numerically ordered two-column table of decoded channel
 counts and valid-image totals. Image Resolution is a three-column table with
 minimum, maximum, and average rows; raw pixels use thousands separators and
@@ -559,6 +608,14 @@ valid-image sections use their explicit human-readable empty-state sentences.
 Diagnostics are path-sorted, use a third-level code-formatted path heading,
 and list every error as a bullet. If no supported images or diagnostics are
 found, their sections contain the same empty-state sentences as text output.
+
+```markdown
+## Image Format Statistics
+
+| Format | Total | Valid | Invalid | Total Valid Bytes | Average Valid Bytes |
+|--------|------:|------:|--------:|------------------:|--------------------:|
+| JPEG | 4 | 3 | 1 | 12,288 | 4,096.00 |
+```
 
 ```markdown
 ## Image Resolution
