@@ -104,10 +104,15 @@ so manifest export does not repeat discovery, validation, metadata
 extraction, image decoding, or candidate hashing. Aggregate-only calls do not
 retain per-candidate manifest records.
 
-`total_size_bytes` is the sum of valid-image file sizes. Invalid candidates
-still contribute to `total_images` and `extension_counts`, but not to channel
-resolution, aspect-ratio, or orientation statistics. They also never
-participate in duplicate hashing.
+`total_size_bytes` is the sum of valid-image file sizes. The analyzer also
+aggregates minimum, maximum, and arithmetic mean valid-image file sizes. Each
+value comes from the `size_bytes` already present in that image's metadata;
+the same value feeds the total, file-size statistics, duplicate-size bucket,
+and optional manifest entry. This adds no filesystem stat, metadata request,
+decode, or traversal. Invalid candidates still contribute to `total_images`
+and `extension_counts`, but not to channel, resolution, aspect-ratio,
+orientation, or file-size statistics. They also never participate in
+duplicate hashing.
 
 For exact duplicates, the analyzer first buckets valid paths by metadata file
 size. Unique-size files are not hashed. Files in same-size buckets are hashed
@@ -130,11 +135,12 @@ from analysis to presentation. It contains dataset identity, valid and
 invalid counts, dimensions, valid-image bytes, normalized extension counts,
 numeric decoded channel counts for valid images, and invalid-image
 diagnostics. It also retains raw minimum, maximum, and average valid-image
-pixel counts and aspect ratios, plus ordered lowercase orientation counts and
-immutable exact-duplicate groups containing a lowercase SHA-256 digest and a
-tuple of `Path` objects. Group, participating-file, and redundant-copy counts
-are derived properties rather than mutable state. Rounded aspect ratios,
-megapixel values, and per-file hashes are not duplicated in the model.
+pixel counts, aspect ratios, and file sizes, plus ordered lowercase
+orientation counts and immutable exact-duplicate groups containing a
+lowercase SHA-256 digest and a tuple of `Path` objects. Group,
+participating-file, and redundant-copy counts are derived properties rather
+than mutable state. Rounded aspect ratios, formatted file sizes, megapixel
+values, and per-file hashes are not duplicated in the model.
 Collection fields use independent default factories. The model keeps channel
 keys as integers and does not attach inferred colour semantics.
 
@@ -157,10 +163,11 @@ newline for non-empty output. JSONL keeps individual records independently
 parseable and is suitable for deterministic line-oriented processing. An
 empty candidate tuple serializes to an empty file.
 
-Aspect-ratio and orientation statistics do not change this eleven-key
-manifest schema. Valid manifest entries already expose decoded width and
-height, so consumers can derive ratios independently without duplicating an
-aggregate concern in each entry.
+Aspect-ratio, orientation, and aggregate file-size statistics do not change
+this eleven-key manifest schema. Valid manifest entries already expose decoded
+width and height and their metadata `size_bytes`, so consumers can derive
+ratios or inspect an individual file size without duplicating aggregate
+concerns in each entry.
 
 ### `DuplicateImageGroup`
 
@@ -180,13 +187,13 @@ and all captured errors without reading or validating the image again.
 `nautilus_vision/dataset_summary.py` contains the human-readable text
 formatter and JSON formatter. Text uses uppercase image-format labels and a
 numeric Image Channels section, followed by Image Resolution, Image Aspect
-Ratios, and diagnostics grouped under portable paths and a formatted size.
-An Exact Duplicate Images section appears between aspect ratios and
-diagnostics. JSON preserves normalized lowercase extension keys, converts
+Ratios, Image File Sizes, and diagnostics grouped under portable paths and a
+formatted size. An Exact Duplicate Images section appears between file sizes
+and diagnostics. JSON preserves normalized lowercase extension keys, converts
 numerically ordered channel keys to strings, includes structured pixel,
-megapixel, aspect-ratio, orientation, and exact-duplicate data plus raw and
-formatted sizes, and represents diagnostics as explicit dictionaries with
-error arrays.
+megapixel, aspect-ratio, orientation, file-size, and exact-duplicate data plus
+raw and formatted total sizes, and represents diagnostics as explicit
+dictionaries with error arrays.
 
 ### Shared dataset serialization
 
@@ -195,24 +202,28 @@ structures used by JSON and CSV. Resolution serialization retains raw pixel
 counts and derives decimal megapixels using `pixel_count / 1_000_000`, rounded
 to six decimal places. Aspect-ratio serialization rounds the already
 aggregated ratios to six decimal places and always emits landscape, portrait,
-and square counts in that order. Duplicate serialization derives counts,
-converts paths to portable strings, and preserves deterministic group and
-path ordering. It does not mutate `DatasetStatistics`.
+and square counts in that order. File-size serialization preserves integer
+minimum and maximum byte counts and rounds the arithmetic mean to two decimal
+places. Duplicate serialization derives counts, converts paths to portable
+strings, and preserves deterministic group and path ordering. It does not
+mutate `DatasetStatistics`.
 
 ### CSV formatter
 
 `nautilus_vision/dataset_csv.py` uses `csv.writer` and `io.StringIO`. It has a
-stable seventeen-column schema. The `extension_counts`, `channel_counts`,
-`resolution_statistics`, `aspect_ratio_statistics`, and `duplicate_images`
-cells are JSON objects, and `invalid_image_diagnostics` is a JSON array in one
-cell. They are serialized with `json.dumps`, so formats do not create dynamic
-columns and commas and quotation marks are correctly escaped.
+stable eighteen-column schema. The `extension_counts`, `channel_counts`,
+`resolution_statistics`, `aspect_ratio_statistics`,
+`file_size_statistics`, and `duplicate_images` cells are JSON objects, and
+`invalid_image_diagnostics` is a JSON array in one cell. They are serialized
+with `json.dumps`, so formats do not create dynamic columns and commas and
+quotation marks are correctly escaped.
 
 ### Markdown formatter
 
 `nautilus_vision/dataset_markdown.py` renders Overview, Image Formats, Image
-Channels, Image Resolution, Image Aspect Ratios, Exact Duplicate Images,
-Invalid Image Diagnostics, Width, Height, and Dataset Size sections.
+Channels, Image Resolution, Image Aspect Ratios, Image File Sizes, Exact
+Duplicate Images, Invalid Image Diagnostics, Width, Height, and Dataset Size
+sections.
 Duplicate and diagnostic paths use portable separators and safe code-span
 delimiters, and error bullets escape Markdown punctuation.
 
@@ -271,7 +282,9 @@ statistics likewise use metadata already collected for valid images and do
 not trigger another decode. Resolution statistics use that same metadata
 result and derive presentation-only megapixels from the model's raw pixel
 counts. Aspect-ratio statistics also use that result, aggregate unrounded
-ratios, and compare integer dimensions directly for orientation. Exact
+ratios, and compare integer dimensions directly for orientation. File-size
+statistics reuse the metadata byte count that also feeds `total_size_bytes`,
+duplicate bucketing, and manifest entries; they do not stat files again. Exact
 duplicate reporting reads analyzer-produced groups and never rehashes files.
 
 Manifest serialization reads the combined analyzer result. It does not
@@ -303,7 +316,8 @@ redundant_copy_count
     == duplicate_file_count - duplicate_group_count
 ```
 
-When valid images exist, resolution and aspect-ratio statistics also satisfy:
+When valid images exist, resolution, aspect-ratio, and file-size statistics
+also satisfy:
 
 ```text
 min_pixel_count <= average_pixel_count <= max_pixel_count
@@ -313,6 +327,9 @@ min_aspect_ratio <= average_aspect_ratio <= max_aspect_ratio
 min_aspect_ratio > 0
 average_aspect_ratio
     == sum(width / height for every valid image) / valid_images
+min_file_size_bytes > 0
+min_file_size_bytes <= average_file_size_bytes <= max_file_size_bytes
+average_file_size_bytes == total_size_bytes / valid_images
 ```
 
 These invariants are analyzer behavior, not validation enforced by the
@@ -320,14 +337,16 @@ These invariants are analyzer behavior, not validation enforced by the
 object whose fields do not satisfy them.
 
 When no valid images exist, channel counts are empty, all width, height,
-pixel-count, and aspect-ratio statistics remain zero, all three analyzer
-orientation categories have zero counts, and `total_size_bytes` is zero.
+pixel-count, aspect-ratio, and file-size statistics remain zero, all three
+analyzer orientation categories have zero counts, and `total_size_bytes` is
+zero.
 Minimum and maximum pixel counts come from actual per-image areas; the
 analyzer never combines independent width and height extrema to fabricate an
 area. Channel values describe decoded array channel counts from the current
 metadata pipeline, not inferred colour modes. Aspect ratios are not rounded
 before aggregation, and orientation is not inferred from ratios, filenames,
-or EXIF data.
+or EXIF data. Duplicate members each contribute their own metadata byte count
+to the file-size statistics and total.
 
 ## Extension normalization
 

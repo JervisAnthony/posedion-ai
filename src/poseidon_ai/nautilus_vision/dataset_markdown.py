@@ -117,6 +117,19 @@ def format_dataset_markdown(
             "No valid image aspect ratio data found."
         ]
 
+    if stats.valid_images:
+        image_file_sizes = [
+            "| Metric | Bytes |",
+            "|--------|------:|",
+            f"| Minimum | {stats.min_file_size_bytes:,} |",
+            f"| Maximum | {stats.max_file_size_bytes:,} |",
+            f"| Average | {stats.average_file_size_bytes:,.2f} |",
+        ]
+    else:
+        image_file_sizes = [
+            "No valid image file size data found."
+        ]
+
     duplicate_data = serialize_duplicate_images(
         stats.duplicate_image_groups
     )
@@ -212,6 +225,10 @@ def format_dataset_markdown(
         "## Image Aspect Ratios",
         "",
         *image_aspect_ratios,
+        "",
+        "## Image File Sizes",
+        "",
+        *image_file_sizes,
         "",
         "## Exact Duplicate Images",
         "",

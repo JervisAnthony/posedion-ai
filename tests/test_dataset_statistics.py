@@ -27,6 +27,9 @@ def test_dataset_statistics_defaults() -> None:
     assert stats.min_aspect_ratio == 0.0
     assert stats.max_aspect_ratio == 0.0
     assert stats.average_aspect_ratio == 0.0
+    assert stats.min_file_size_bytes == 0
+    assert stats.max_file_size_bytes == 0
+    assert stats.average_file_size_bytes == 0.0
     assert stats.extension_counts == {}
     assert stats.channel_counts == {}
     assert stats.orientation_counts == {}

@@ -35,6 +35,9 @@ def create_statistics() -> DatasetStatistics:
             "portrait": 1,
             "square": 1,
         },
+        min_file_size_bytes=256,
+        max_file_size_bytes=1024,
+        average_file_size_bytes=2048 / 3,
         total_size_bytes=2048,
         extension_counts={
             "webp": 1,
@@ -81,6 +84,7 @@ def test_format_dataset_markdown() -> None:
     assert "## Image Channels" in result
     assert "## Image Resolution" in result
     assert "## Image Aspect Ratios" in result
+    assert "## Image File Sizes" in result
     assert "## Exact Duplicate Images" in result
     assert "## Invalid Image Diagnostics" in result
     assert "## Width" in result
@@ -109,6 +113,9 @@ def test_format_dataset_markdown() -> None:
         "## Image Aspect Ratios"
     )
     assert result.index("## Image Aspect Ratios") < result.index(
+        "## Image File Sizes"
+    )
+    assert result.index("## Image File Sizes") < result.index(
         "## Exact Duplicate Images"
     )
     assert result.index("## Exact Duplicate Images") < result.index(
@@ -124,6 +131,9 @@ def test_format_dataset_markdown() -> None:
     assert "| Landscape Images | 1 |" in result
     assert "| Portrait Images | 1 |" in result
     assert "| Square Images | 1 |" in result
+    assert "| Minimum | 256 |" in result
+    assert "| Maximum | 1,024 |" in result
+    assert "| Average | 682.67 |" in result
     assert "| Duplicate Groups | 1 |" in result
     assert "| Files in Groups | 3 |" in result
     assert "| Redundant Copies | 2 |" in result
@@ -175,6 +185,9 @@ def test_format_dataset_markdown_with_no_images() -> None:
     stats.max_aspect_ratio = 0.0
     stats.average_aspect_ratio = 0.0
     stats.orientation_counts = {}
+    stats.min_file_size_bytes = 0
+    stats.max_file_size_bytes = 0
+    stats.average_file_size_bytes = 0.0
     stats.total_size_bytes = 0
     stats.invalid_image_diagnostics = []
 
@@ -188,6 +201,7 @@ def test_format_dataset_markdown_with_no_images() -> None:
     assert "No valid image channel data found." in result
     assert "No valid image resolution data found." in result
     assert "No valid image aspect ratio data found." in result
+    assert "No valid image file size data found." in result
     assert "No exact duplicate images found." in result
     assert "No invalid images found." in result
 

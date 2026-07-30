@@ -72,6 +72,11 @@ def test_format_valid_manifest_entry_uses_exact_schema() -> None:
     assert "aspect_ratio" not in record
     assert "orientation" not in record
     assert "orientation_category" not in record
+    assert "min_file_size_bytes" not in record
+    assert "max_file_size_bytes" not in record
+    assert "average_file_size_bytes" not in record
+    assert "file_size_statistics" not in record
+    assert "formatted_file_size" not in record
     assert record == {
         "path": "nested/coral.jpg",
         "extension": "jpeg",
