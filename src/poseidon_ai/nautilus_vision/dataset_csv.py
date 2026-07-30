@@ -8,6 +8,7 @@ from poseidon_ai.nautilus_vision.dataset_serialization import (
     serialize_channel_counts,
     serialize_duplicate_images,
     serialize_file_size_statistics,
+    serialize_format_statistics,
     serialize_invalid_image_diagnostics,
     serialize_resolution_statistics,
 )
@@ -34,6 +35,7 @@ def format_dataset_csv(
             "valid_images",
             "invalid_images",
             "extension_counts",
+            "format_statistics",
             "channel_counts",
             "resolution_statistics",
             "aspect_ratio_statistics",
@@ -57,6 +59,9 @@ def format_dataset_csv(
             stats.invalid_images,
             json.dumps(
                 dict(sorted(stats.extension_counts.items()))
+            ),
+            json.dumps(
+                serialize_format_statistics(stats.format_statistics)
             ),
             json.dumps(
                 serialize_channel_counts(stats.channel_counts)

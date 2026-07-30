@@ -56,6 +56,35 @@ def format_dataset_markdown(
     else:
         image_formats = ["No supported image files found."]
 
+    if stats.format_statistics:
+        image_format_statistics = [
+            (
+                "| Format | Total | Valid | Invalid | "
+                "Total Valid Bytes | Average Valid Bytes |"
+            ),
+            (
+                "|--------|------:|------:|--------:|"
+                "------------------:|--------------------:|"
+            ),
+            *[
+                (
+                    f"| {extension.upper()} | "
+                    f"{statistics.total_images} | "
+                    f"{statistics.valid_images} | "
+                    f"{statistics.invalid_images} | "
+                    f"{statistics.total_valid_size_bytes:,} | "
+                    f"{statistics.average_valid_size_bytes:,.2f} |"
+                )
+                for extension, statistics in sorted(
+                    stats.format_statistics.items()
+                )
+            ],
+        ]
+    else:
+        image_format_statistics = [
+            "No image format statistics found."
+        ]
+
     if stats.channel_counts:
         image_channels = [
             "| Channels | Images |",
@@ -213,6 +242,10 @@ def format_dataset_markdown(
         "## Image Formats",
         "",
         *image_formats,
+        "",
+        "## Image Format Statistics",
+        "",
+        *image_format_statistics,
         "",
         "## Image Channels",
         "",

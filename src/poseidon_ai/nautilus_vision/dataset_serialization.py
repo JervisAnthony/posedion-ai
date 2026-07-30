@@ -5,6 +5,7 @@ from pathlib import Path
 
 from poseidon_ai.nautilus_vision.dataset_statistics import (
     DuplicateImageGroup,
+    ImageFormatStatistics,
     InvalidImageDiagnostic,
 )
 
@@ -17,6 +18,30 @@ def serialize_channel_counts(
     return {
         str(channels): count
         for channels, count in sorted(channel_counts.items())
+    }
+
+
+def serialize_format_statistics(
+    format_statistics: Mapping[str, ImageFormatStatistics],
+) -> dict[str, dict[str, int | float]]:
+    """Return deterministic statistics for normalized image formats."""
+
+    return {
+        extension: {
+            "total_images": statistics.total_images,
+            "valid_images": statistics.valid_images,
+            "invalid_images": statistics.invalid_images,
+            "total_valid_size_bytes": (
+                statistics.total_valid_size_bytes
+            ),
+            "average_valid_size_bytes": round(
+                statistics.average_valid_size_bytes,
+                2,
+            ),
+        }
+        for extension, statistics in sorted(
+            format_statistics.items()
+        )
     }
 
 

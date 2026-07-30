@@ -35,7 +35,8 @@ work.
 - Analyzes valid and invalid image counts, width and height statistics, valid
   image bytes, normalized extension counts, and decoded valid-image channel
   counts, plus valid-image pixel-area, megapixel, aspect-ratio, and
-  orientation statistics and minimum, maximum, and average file sizes.
+  orientation statistics, minimum, maximum, and average file sizes, and
+  per-format valid, invalid, and valid-byte statistics.
 - Detects byte-identical valid image files using SHA-256 exact-content hashes.
 - Captures structured paths and every validation error for invalid images,
   then exposes them in each dataset report.
@@ -159,6 +160,22 @@ Image Formats
 JPEG              : 1
 PNG               : 1
 
+Image Format Statistics
+-----------------------
+JPEG
+  Total Images        : 1
+  Valid Images        : 1
+  Invalid Images      : 0
+  Total Valid Bytes   : 512
+  Average Valid Bytes : 512.00
+
+PNG
+  Total Images        : 1
+  Valid Images        : 1
+  Invalid Images      : 0
+  Total Valid Bytes   : 1,536
+  Average Valid Bytes : 1,536.00
+
 Image Channels
 --------------
 3 channels         : 2
@@ -211,6 +228,22 @@ sections.
     "jpeg": 1,
     "png": 1
   },
+  "format_statistics": {
+    "jpeg": {
+      "total_images": 1,
+      "valid_images": 1,
+      "invalid_images": 0,
+      "total_valid_size_bytes": 512,
+      "average_valid_size_bytes": 512.0
+    },
+    "png": {
+      "total_images": 1,
+      "valid_images": 1,
+      "invalid_images": 0,
+      "total_valid_size_bytes": 1536,
+      "average_valid_size_bytes": 1536.0
+    }
+  },
   "channel_counts": {
     "3": 2
   },
@@ -262,8 +295,8 @@ sections.
 ### CSV
 
 ```csv
-dataset_path,total_images,valid_images,invalid_images,extension_counts,channel_counts,resolution_statistics,aspect_ratio_statistics,file_size_statistics,duplicate_images,invalid_image_diagnostics,min_width,max_width,average_width,min_height,max_height,average_height,total_size_bytes
-data/sample_dataset,2,2,0,"{""jpeg"": 1, ""png"": 1}","{""3"": 2}","{""minimum_pixels"": 307200, ""maximum_pixels"": 921600, ""average_pixels"": 614400.0, ""minimum_megapixels"": 0.3072, ""maximum_megapixels"": 0.9216, ""average_megapixels"": 0.6144}","{""minimum"": 1.333333, ""maximum"": 1.777778, ""average"": 1.555556, ""orientation_counts"": {""landscape"": 2, ""portrait"": 0, ""square"": 0}}","{""minimum_bytes"": 512, ""maximum_bytes"": 1536, ""average_bytes"": 1024.0}","{""group_count"": 0, ""file_count"": 0, ""redundant_copy_count"": 0, ""groups"": []}",[],640,1280,960.00,480,720,600.00,2048
+dataset_path,total_images,valid_images,invalid_images,extension_counts,format_statistics,channel_counts,resolution_statistics,aspect_ratio_statistics,file_size_statistics,duplicate_images,invalid_image_diagnostics,min_width,max_width,average_width,min_height,max_height,average_height,total_size_bytes
+data/sample_dataset,2,2,0,"{""jpeg"": 1, ""png"": 1}","{""jpeg"": {""total_images"": 1, ""valid_images"": 1, ""invalid_images"": 0, ""total_valid_size_bytes"": 512, ""average_valid_size_bytes"": 512.0}, ""png"": {""total_images"": 1, ""valid_images"": 1, ""invalid_images"": 0, ""total_valid_size_bytes"": 1536, ""average_valid_size_bytes"": 1536.0}}","{""3"": 2}","{""minimum_pixels"": 307200, ""maximum_pixels"": 921600, ""average_pixels"": 614400.0, ""minimum_megapixels"": 0.3072, ""maximum_megapixels"": 0.9216, ""average_megapixels"": 0.6144}","{""minimum"": 1.333333, ""maximum"": 1.777778, ""average"": 1.555556, ""orientation_counts"": {""landscape"": 2, ""portrait"": 0, ""square"": 0}}","{""minimum_bytes"": 512, ""maximum_bytes"": 1536, ""average_bytes"": 1024.0}","{""group_count"": 0, ""file_count"": 0, ""redundant_copy_count"": 0, ""groups"": []}",[],640,1280,960.00,480,720,600.00,2048
 ```
 
 ### Markdown
@@ -286,6 +319,13 @@ data/sample_dataset,2,2,0,"{""jpeg"": 1, ""png"": 1}","{""3"": 2}","{""minimum_p
 |--------|-------:|
 | JPEG | 1 |
 | PNG | 1 |
+
+## Image Format Statistics
+
+| Format | Total | Valid | Invalid | Total Valid Bytes | Average Valid Bytes |
+|--------|------:|------:|--------:|------------------:|--------------------:|
+| JPEG | 1 | 1 | 0 | 512 | 512.00 |
+| PNG | 1 | 1 | 0 | 1,536 | 1,536.00 |
 
 ## Image Channels
 
@@ -331,6 +371,10 @@ No invalid images found.
 
 Channel counts are the numeric decoded channel counts reported by the current
 metadata pipeline for valid images; they do not infer colour-mode semantics.
+Per-format statistics use the existing normalized aliases (`jpg` to `jpeg`
+and `tif` to `tiff`). Invalid candidates contribute to format totals but not
+valid bytes; valid sizes reuse collected metadata, and duplicate files
+contribute independently.
 Resolution statistics use each valid image's actual decoded width × height
 pixel area. Megapixels are derived from those areas without inferring DPI,
 quality, or semantic resolution categories.
@@ -369,7 +413,7 @@ python -m pytest tests/test_dataset_summary.py -v
 GitHub Actions runs the complete test suite on Ubuntu and Windows with
 Python 3.13.
 
-The suite contained 164 passing tests when this documentation was verified.
+The suite contained 173 passing tests when this documentation was verified.
 
 ## Project structure
 

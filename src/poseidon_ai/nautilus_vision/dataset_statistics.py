@@ -22,6 +22,17 @@ class InvalidImageDiagnostic:
     errors: tuple[str, ...]
 
 
+@dataclass(frozen=True, slots=True)
+class ImageFormatStatistics:
+    """Represents aggregate statistics for one normalized image format."""
+
+    total_images: int
+    valid_images: int
+    invalid_images: int
+    total_valid_size_bytes: int
+    average_valid_size_bytes: float
+
+
 @dataclass(slots=True)
 class DatasetStatistics:
     """Represents summary statistics for an image dataset."""
@@ -56,6 +67,9 @@ class DatasetStatistics:
     average_file_size_bytes: float = 0.0
 
     extension_counts: dict[str, int] = field(default_factory=dict)
+    format_statistics: dict[str, ImageFormatStatistics] = field(
+        default_factory=dict
+    )
     invalid_image_diagnostics: list[InvalidImageDiagnostic] = field(
         default_factory=list
     )

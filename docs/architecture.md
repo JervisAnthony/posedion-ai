@@ -84,8 +84,10 @@ filesystem exceptions.
 
 `nautilus_vision/dataset_analyzer.py` coordinates discovery and validation.
 It counts every supported candidate, normalizes and counts its extension,
-records invalid-image diagnostics, and collects size and dimension data for
-valid images. It also aggregates the decoded channel count already present in
+then aggregates total, valid, invalid, total-valid-byte, and
+average-valid-byte statistics for each normalized format. It records
+invalid-image diagnostics and collects size and dimension data for valid
+images. It also aggregates the decoded channel count already present in
 each valid image's metadata. From the same metadata result, it calculates
 each valid image's actual `width * height` pixel area and aggregates minimum,
 maximum, and arithmetic mean pixel counts. It also calculates each unrounded
@@ -108,11 +110,14 @@ retain per-candidate manifest records.
 aggregates minimum, maximum, and arithmetic mean valid-image file sizes. Each
 value comes from the `size_bytes` already present in that image's metadata;
 the same value feeds the total, file-size statistics, duplicate-size bucket,
-and optional manifest entry. This adds no filesystem stat, metadata request,
-decode, or traversal. Invalid candidates still contribute to `total_images`
-and `extension_counts`, but not to channel, resolution, aspect-ratio,
-orientation, or file-size statistics. They also never participate in
-duplicate hashing.
+per-format valid bytes, and optional manifest entry. This adds no filesystem
+stat, metadata request, validation, decode, hash, or traversal. Invalid
+candidates still contribute to `total_images`, `extension_counts`, and
+per-format total and invalid counts, but not to per-format valid counts or
+bytes, channel, resolution, aspect-ratio, orientation, or file-size
+statistics. They also never participate in duplicate hashing. Exact
+duplicate members remain separate valid candidates and each contributes its
+own size to both global and per-format statistics.
 
 For exact duplicates, the analyzer first buckets valid paths by metadata file
 size. Unique-size files are not hashed. Files in same-size buckets are hashed
@@ -133,8 +138,9 @@ case-insensitive then case-sensitive ordering.
 `nautilus_vision/dataset_statistics.py` defines the mutable aggregate passed
 from analysis to presentation. It contains dataset identity, valid and
 invalid counts, dimensions, valid-image bytes, normalized extension counts,
-numeric decoded channel counts for valid images, and invalid-image
-diagnostics. It also retains raw minimum, maximum, and average valid-image
+immutable per-format aggregates, numeric decoded channel counts for valid
+images, and invalid-image diagnostics. It also retains raw minimum, maximum,
+and average valid-image
 pixel counts, aspect ratios, and file sizes, plus ordered lowercase
 orientation counts and immutable exact-duplicate groups containing a
 lowercase SHA-256 digest and a tuple of `Path` objects. Group,
@@ -146,6 +152,16 @@ keys as integers and does not attach inferred colour semantics.
 
 Per-candidate inventory data is deliberately not stored in
 `DatasetStatistics`, which remains aggregate-only.
+
+### `ImageFormatStatistics`
+
+`ImageFormatStatistics` is a frozen, slotted value model for one normalized
+extension. It stores total, valid, and invalid candidate counts plus total and
+average bytes from valid images. It stores neither paths nor formatted sizes.
+`DatasetStatistics.format_statistics` maps normalized lowercase extensions to
+these values with an independent dictionary default. `extension_counts`
+remains the backward-compatible total-count representation, while bare
+manually constructed statistics may leave the richer mapping empty.
 
 ### Dataset manifest
 
@@ -163,11 +179,11 @@ newline for non-empty output. JSONL keeps individual records independently
 parseable and is suitable for deterministic line-oriented processing. An
 empty candidate tuple serializes to an empty file.
 
-Aspect-ratio, orientation, and aggregate file-size statistics do not change
-this eleven-key manifest schema. Valid manifest entries already expose decoded
-width and height and their metadata `size_bytes`, so consumers can derive
-ratios or inspect an individual file size without duplicating aggregate
-concerns in each entry.
+Aspect-ratio, orientation, aggregate file-size, and per-format statistics do
+not change this eleven-key manifest schema. Entries already expose their
+normalized extension, and valid entries expose decoded width and height and
+their metadata `size_bytes`, so consumers can inspect per-file inputs without
+duplicating aggregate concerns in each entry.
 
 ### `DuplicateImageGroup`
 
@@ -186,10 +202,11 @@ and all captured errors without reading or validating the image again.
 
 `nautilus_vision/dataset_summary.py` contains the human-readable text
 formatter and JSON formatter. Text uses uppercase image-format labels and a
-numeric Image Channels section, followed by Image Resolution, Image Aspect
-Ratios, Image File Sizes, and diagnostics grouped under portable paths and a
-formatted size. An Exact Duplicate Images section appears between file sizes
-and diagnostics. JSON preserves normalized lowercase extension keys, converts
+per-format statistics section followed by numeric Image Channels, Image
+Resolution, Image Aspect Ratios, Image File Sizes, and diagnostics grouped
+under portable paths and a formatted size. An Exact Duplicate Images section
+appears between file sizes and diagnostics. JSON preserves normalized
+lowercase extension keys, converts
 numerically ordered channel keys to strings, includes structured pixel,
 megapixel, aspect-ratio, orientation, file-size, and exact-duplicate data plus
 raw and formatted total sizes, and represents diagnostics as explicit
@@ -204,16 +221,18 @@ to six decimal places. Aspect-ratio serialization rounds the already
 aggregated ratios to six decimal places and always emits landscape, portrait,
 and square counts in that order. File-size serialization preserves integer
 minimum and maximum byte counts and rounds the arithmetic mean to two decimal
-places. Duplicate serialization derives counts, converts paths to portable
-strings, and preserves deterministic group and path ordering. It does not
-mutate `DatasetStatistics`.
+places. Per-format serialization sorts normalized extensions, preserves its
+five stable fields and numeric types, and rounds average valid bytes to two
+decimal places. Duplicate serialization derives counts, converts paths to
+portable strings, and preserves deterministic group and path ordering. It
+does not mutate `DatasetStatistics`.
 
 ### CSV formatter
 
 `nautilus_vision/dataset_csv.py` uses `csv.writer` and `io.StringIO`. It has a
-stable eighteen-column schema. The `extension_counts`, `channel_counts`,
-`resolution_statistics`, `aspect_ratio_statistics`,
-`file_size_statistics`, and `duplicate_images` cells are JSON objects, and
+stable nineteen-column schema. The `extension_counts`, `format_statistics`,
+`channel_counts`, `resolution_statistics`, `aspect_ratio_statistics`,
+`file_size_statistics`, and `duplicate_images` cells are JSON objects.
 `invalid_image_diagnostics` is a JSON array in one cell. They are serialized
 with `json.dumps`, so formats do not create dynamic columns and commas and
 quotation marks are correctly escaped.
@@ -221,9 +240,9 @@ quotation marks are correctly escaped.
 ### Markdown formatter
 
 `nautilus_vision/dataset_markdown.py` renders Overview, Image Formats, Image
-Channels, Image Resolution, Image Aspect Ratios, Image File Sizes, Exact
-Duplicate Images, Invalid Image Diagnostics, Width, Height, and Dataset Size
-sections.
+Format Statistics, Image Channels, Image Resolution, Image Aspect Ratios,
+Image File Sizes, Exact Duplicate Images, Invalid Image Diagnostics, Width,
+Height, and Dataset Size sections.
 Duplicate and diagnostic paths use portable separators and safe code-span
 delimiters, and error bullets escape Markdown punctuation.
 
@@ -284,7 +303,9 @@ result and derive presentation-only megapixels from the model's raw pixel
 counts. Aspect-ratio statistics also use that result, aggregate unrounded
 ratios, and compare integer dimensions directly for orientation. File-size
 statistics reuse the metadata byte count that also feeds `total_size_bytes`,
-duplicate bucketing, and manifest entries; they do not stat files again. Exact
+duplicate bucketing, per-format valid bytes, and manifest entries; they do not
+stat files again. Per-format aggregation reuses the extension already
+normalized for `extension_counts` and the same validation result. Exact
 duplicate reporting reads analyzer-produced groups and never rehashes files.
 
 Manifest serialization reads the combined analyzer result. It does not
@@ -299,6 +320,17 @@ expected:
 ```text
 total_images == valid_images + invalid_images
 sum(extension_counts.values()) == total_images
+set(format_statistics) == set(extension_counts)
+sum(item.total_images for item in format_statistics.values()) == total_images
+sum(item.valid_images for item in format_statistics.values()) == valid_images
+sum(item.invalid_images for item in format_statistics.values())
+    == invalid_images
+sum(item.total_valid_size_bytes for item in format_statistics.values())
+    == total_size_bytes
+all(
+    item.total_images == item.valid_images + item.invalid_images
+    for item in format_statistics.values()
+)
 sum(channel_counts.values()) == valid_images
 sum(orientation_counts.values()) == valid_images
 set(orientation_counts) == {"landscape", "portrait", "square"}
@@ -330,6 +362,18 @@ average_aspect_ratio
 min_file_size_bytes > 0
 min_file_size_bytes <= average_file_size_bytes <= max_file_size_bytes
 average_file_size_bytes == total_size_bytes / valid_images
+all(
+    item.average_valid_size_bytes
+        == item.total_valid_size_bytes / item.valid_images
+    for item in format_statistics.values()
+    if item.valid_images > 0
+)
+all(
+    item.total_valid_size_bytes == 0
+    and item.average_valid_size_bytes == 0.0
+    for item in format_statistics.values()
+    if item.valid_images == 0
+)
 ```
 
 These invariants are analyzer behavior, not validation enforced by the
@@ -346,7 +390,7 @@ area. Channel values describe decoded array channel counts from the current
 metadata pipeline, not inferred colour modes. Aspect ratios are not rounded
 before aggregation, and orientation is not inferred from ratios, filenames,
 or EXIF data. Duplicate members each contribute their own metadata byte count
-to the file-size statistics and total.
+to the file-size statistics, per-format statistics, and total.
 
 ## Extension normalization
 

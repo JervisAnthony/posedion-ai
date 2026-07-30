@@ -13,6 +13,7 @@ from poseidon_ai.nautilus_vision.dataset_manifest import (
 from poseidon_ai.nautilus_vision.dataset_statistics import (
     DatasetStatistics,
     DuplicateImageGroup,
+    ImageFormatStatistics,
     InvalidImageDiagnostic,
 )
 from poseidon_ai.nautilus_vision.image_hash import calculate_sha256
@@ -107,6 +108,9 @@ def _analyze_dataset(
         "square": 0,
     }
     size_to_paths: dict[int, list[Path]] = {}
+    valid_extension_counts: dict[str, int] = {}
+    invalid_extension_counts: dict[str, int] = {}
+    valid_extension_size_totals: dict[str, int] = {}
     manifest_entries: list[DatasetManifestEntry] | None = (
         [] if collect_manifest else None
     )
@@ -131,6 +135,9 @@ def _analyze_dataset(
 
         if not validation_result.is_valid:
             stats.invalid_images += 1
+            invalid_extension_counts[extension] = (
+                invalid_extension_counts.get(extension, 0) + 1
+            )
 
             stats.invalid_image_diagnostics.append(
                 InvalidImageDiagnostic(
@@ -156,6 +163,13 @@ def _analyze_dataset(
         stats.valid_images += 1
         file_size_bytes = metadata["size_bytes"]
         stats.total_size_bytes += file_size_bytes
+        valid_extension_counts[extension] = (
+            valid_extension_counts.get(extension, 0) + 1
+        )
+        valid_extension_size_totals[extension] = (
+            valid_extension_size_totals.get(extension, 0)
+            + file_size_bytes
+        )
         file_sizes.append(file_size_bytes)
         size_to_paths.setdefault(
             file_size_bytes,
@@ -270,6 +284,27 @@ def _analyze_dataset(
         ),
     )
     stats.extension_counts = dict(sorted(stats.extension_counts.items()))
+    format_statistics: dict[str, ImageFormatStatistics] = {}
+    for extension, total_images in stats.extension_counts.items():
+        valid_images = valid_extension_counts.get(extension, 0)
+        invalid_images = invalid_extension_counts.get(extension, 0)
+        total_valid_size_bytes = valid_extension_size_totals.get(
+            extension,
+            0,
+        )
+        average_valid_size_bytes = (
+            total_valid_size_bytes / valid_images
+            if valid_images
+            else 0.0
+        )
+        format_statistics[extension] = ImageFormatStatistics(
+            total_images=total_images,
+            valid_images=valid_images,
+            invalid_images=invalid_images,
+            total_valid_size_bytes=total_valid_size_bytes,
+            average_valid_size_bytes=average_valid_size_bytes,
+        )
+    stats.format_statistics = format_statistics
     stats.channel_counts = dict(sorted(stats.channel_counts.items()))
 
     if manifest_entries is None:

@@ -6,6 +6,7 @@ from poseidon_ai.nautilus_vision.dataset_markdown import (
 from poseidon_ai.nautilus_vision.dataset_statistics import (
     DatasetStatistics,
     DuplicateImageGroup,
+    ImageFormatStatistics,
     InvalidImageDiagnostic,
 )
 
@@ -44,6 +45,11 @@ def create_statistics() -> DatasetStatistics:
             "jpeg": 2,
             "png": 1,
         },
+        format_statistics={
+            "webp": ImageFormatStatistics(1, 0, 1, 0, 0.0),
+            "jpeg": ImageFormatStatistics(2, 2, 0, 1_365, 682.5),
+            "png": ImageFormatStatistics(1, 1, 0, 683, 683.0),
+        },
         channel_counts={
             10: 1,
             1: 1,
@@ -81,6 +87,7 @@ def test_format_dataset_markdown() -> None:
     assert "# Dataset Summary" in result
     assert "## Overview" in result
     assert "## Image Formats" in result
+    assert "## Image Format Statistics" in result
     assert "## Image Channels" in result
     assert "## Image Resolution" in result
     assert "## Image Aspect Ratios" in result
@@ -100,6 +107,19 @@ def test_format_dataset_markdown() -> None:
     assert "| WEBP | 1 |" in result
     assert result.index("| JPEG |") < result.index("| PNG |")
     assert result.index("| PNG |") < result.index("| WEBP |")
+    assert (
+        "| Format | Total | Valid | Invalid | "
+        "Total Valid Bytes | Average Valid Bytes |"
+    ) in result
+    assert "| JPEG | 2 | 2 | 0 | 1,365 | 682.50 |" in result
+    assert "| PNG | 1 | 1 | 0 | 683 | 683.00 |" in result
+    assert "| WEBP | 1 | 0 | 1 | 0 | 0.00 |" in result
+    assert result.index(
+        "## Image Formats"
+    ) < result.index("## Image Format Statistics")
+    assert result.index(
+        "## Image Format Statistics"
+    ) < result.index("## Image Channels")
     assert "| Channels | Images |" in result
     assert "| 1 | 1 |" in result
     assert "| 2 | 1 |" in result
@@ -167,6 +187,7 @@ def test_format_dataset_markdown_with_no_images() -> None:
 
     stats = create_statistics()
     stats.extension_counts = {}
+    stats.format_statistics = {}
     stats.channel_counts = {}
     stats.duplicate_image_groups = []
     stats.total_images = 0
@@ -198,6 +219,7 @@ def test_format_dataset_markdown_with_no_images() -> None:
 
     assert "## Image Formats" in result
     assert "No supported image files found." in result
+    assert "No image format statistics found." in result
     assert "No valid image channel data found." in result
     assert "No valid image resolution data found." in result
     assert "No valid image aspect ratio data found." in result

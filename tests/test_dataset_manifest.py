@@ -77,6 +77,12 @@ def test_format_valid_manifest_entry_uses_exact_schema() -> None:
     assert "average_file_size_bytes" not in record
     assert "file_size_statistics" not in record
     assert "formatted_file_size" not in record
+    assert "format_statistics" not in record
+    assert "format_total_images" not in record
+    assert "format_valid_images" not in record
+    assert "format_invalid_images" not in record
+    assert "format_total_valid_size_bytes" not in record
+    assert "format_average_valid_size_bytes" not in record
     assert record == {
         "path": "nested/coral.jpg",
         "extension": "jpeg",
