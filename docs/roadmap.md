@@ -20,6 +20,7 @@ exploratory entries are not delivery commitments and have no assigned dates.
 - Normalized image-extension statistics
 - Decoded valid-image channel distribution statistics across all report
   formats
+- Valid-image pixel-area and megapixel statistics across every report format
 - Structured invalid-image diagnostics in every dataset report
 - Text, JSON, CSV, and Markdown dataset reports
 - UTF-8 report file output
@@ -39,7 +40,6 @@ exploratory entries are not delivery commitments and have no assigned dates.
 
 ### Planned
 
-- Resolution statistics
 - Duplicate-image detection
 - Dataset manifest export
 - Model-training and inference capabilities

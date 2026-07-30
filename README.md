@@ -34,7 +34,7 @@ work.
 - Resizes and pads images while preserving aspect ratio.
 - Analyzes valid and invalid image counts, width and height statistics, valid
   image bytes, normalized extension counts, and decoded valid-image channel
-  counts.
+  counts, plus valid-image pixel-area and megapixel statistics.
 - Captures structured paths and every validation error for invalid images,
   then exposes them in each dataset report.
 - Renders dataset reports as text, JSON, CSV, or Markdown.
@@ -151,6 +151,15 @@ Image Channels
 --------------
 3 channels         : 2
 
+Image Resolution
+----------------
+Minimum Pixels    : 307,200
+Maximum Pixels    : 921,600
+Average Pixels    : 614,400.00
+Minimum MP        : 0.31
+Maximum MP        : 0.92
+Average MP        : 0.61
+
 Invalid Image Diagnostics
 -------------------------
 No invalid images found.
@@ -174,6 +183,14 @@ sections.
   "channel_counts": {
     "3": 2
   },
+  "resolution_statistics": {
+    "minimum_pixels": 307200,
+    "maximum_pixels": 921600,
+    "average_pixels": 614400.0,
+    "minimum_megapixels": 0.3072,
+    "maximum_megapixels": 0.9216,
+    "average_megapixels": 0.6144
+  },
   "invalid_image_diagnostics": [],
   "width": {
     "minimum": 640,
@@ -193,8 +210,8 @@ sections.
 ### CSV
 
 ```csv
-dataset_path,total_images,valid_images,invalid_images,extension_counts,channel_counts,invalid_image_diagnostics,min_width,max_width,average_width,min_height,max_height,average_height,total_size_bytes
-data/sample_dataset,2,2,0,"{""jpeg"": 1, ""png"": 1}","{""3"": 2}",[],640,1280,960.00,480,720,600.00,2048
+dataset_path,total_images,valid_images,invalid_images,extension_counts,channel_counts,resolution_statistics,invalid_image_diagnostics,min_width,max_width,average_width,min_height,max_height,average_height,total_size_bytes
+data/sample_dataset,2,2,0,"{""jpeg"": 1, ""png"": 1}","{""3"": 2}","{""minimum_pixels"": 307200, ""maximum_pixels"": 921600, ""average_pixels"": 614400.0, ""minimum_megapixels"": 0.3072, ""maximum_megapixels"": 0.9216, ""average_megapixels"": 0.6144}",[],640,1280,960.00,480,720,600.00,2048
 ```
 
 ### Markdown
@@ -224,6 +241,14 @@ data/sample_dataset,2,2,0,"{""jpeg"": 1, ""png"": 1}","{""3"": 2}",[],640,1280,9
 |---------:|-------:|
 | 3 | 2 |
 
+## Image Resolution
+
+| Metric | Pixels | Megapixels |
+|--------|-------:|-----------:|
+| Minimum | 307,200 | 0.31 |
+| Maximum | 921,600 | 0.92 |
+| Average | 614,400.00 | 0.61 |
+
 ## Invalid Image Diagnostics
 
 No invalid images found.
@@ -231,6 +256,9 @@ No invalid images found.
 
 Channel counts are the numeric decoded channel counts reported by the current
 metadata pipeline for valid images; they do not infer colour-mode semantics.
+Resolution statistics use each valid image's actual decoded width × height
+pixel area. Megapixels are derived from those areas without inferring DPI,
+quality, or semantic resolution categories.
 
 ## Supported image formats
 
@@ -257,7 +285,7 @@ python -m pytest tests/test_dataset_summary.py -v
 GitHub Actions runs the complete test suite on Ubuntu and Windows with
 Python 3.13.
 
-The suite contained 107 passing tests when this documentation was verified.
+The suite contained 110 passing tests when this documentation was verified.
 
 ## Project structure
 
@@ -293,7 +321,7 @@ selection mechanism for all four report types. See
 - Analysis and presentation remain separate.
 - Structured dataclasses carry statistics and validation diagnostics.
 - Formatter output is deterministic, including normalized extension and
-  numeric channel order.
+  numeric channel order and resolution serialization.
 - CSV serialization uses the Python standard library.
 - CLI behavior and structured output are tested.
 - Paths are handled with `pathlib`, with portable report tests.

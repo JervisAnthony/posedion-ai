@@ -16,6 +16,7 @@ from poseidon_ai.nautilus_vision.dataset_markdown import (
 from poseidon_ai.nautilus_vision.dataset_serialization import (
     serialize_channel_counts,
     serialize_invalid_image_diagnostics,
+    serialize_resolution_statistics,
 )
 from poseidon_ai.nautilus_vision.dataset_statistics import DatasetStatistics
 from poseidon_ai.nautilus_vision.image_validator import (
@@ -52,6 +53,21 @@ def format_dataset_summary(
         image_channels = "\n".join(image_channel_lines)
     else:
         image_channels = "No valid image channel data found."
+
+    if stats.valid_images:
+        image_resolution = (
+            f"Minimum Pixels    : {stats.min_pixel_count:,}\n"
+            f"Maximum Pixels    : {stats.max_pixel_count:,}\n"
+            f"Average Pixels    : {stats.average_pixel_count:,.2f}\n"
+            "Minimum MP        : "
+            f"{stats.min_pixel_count / 1_000_000:.2f}\n"
+            "Maximum MP        : "
+            f"{stats.max_pixel_count / 1_000_000:.2f}\n"
+            "Average MP        : "
+            f"{stats.average_pixel_count / 1_000_000:.2f}"
+        )
+    else:
+        image_resolution = "No valid image resolution data found."
 
     if stats.invalid_image_diagnostics:
         invalid_image_diagnostics = "\n\n".join(
@@ -91,6 +107,10 @@ def format_dataset_summary(
         "--------------\n"
         f"{image_channels}\n"
         "\n"
+        "Image Resolution\n"
+        "----------------\n"
+        f"{image_resolution}\n"
+        "\n"
         "Invalid Image Diagnostics\n"
         "-------------------------\n"
         f"{invalid_image_diagnostics}\n"
@@ -129,6 +149,11 @@ def format_dataset_summary_json(
         ),
         "channel_counts": serialize_channel_counts(
             stats.channel_counts
+        ),
+        "resolution_statistics": serialize_resolution_statistics(
+            stats.min_pixel_count,
+            stats.max_pixel_count,
+            stats.average_pixel_count,
         ),
         "invalid_image_diagnostics": (
             serialize_invalid_image_diagnostics(

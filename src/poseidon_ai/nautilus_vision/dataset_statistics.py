@@ -35,6 +35,10 @@ class DatasetStatistics:
     average_width: float = 0.0
     average_height: float = 0.0
 
+    min_pixel_count: int = 0
+    max_pixel_count: int = 0
+    average_pixel_count: float = 0.0
+
     extension_counts: dict[str, int] = field(default_factory=dict)
     invalid_image_diagnostics: list[InvalidImageDiagnostic] = field(
         default_factory=list

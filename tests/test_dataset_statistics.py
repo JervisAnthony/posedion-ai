@@ -20,6 +20,9 @@ def test_dataset_statistics_defaults() -> None:
 
     assert stats.average_width == 0.0
     assert stats.average_height == 0.0
+    assert stats.min_pixel_count == 0
+    assert stats.max_pixel_count == 0
+    assert stats.average_pixel_count == 0.0
     assert stats.extension_counts == {}
     assert stats.channel_counts == {}
     assert stats.invalid_image_diagnostics == []

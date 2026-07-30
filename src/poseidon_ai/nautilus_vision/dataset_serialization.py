@@ -18,6 +18,32 @@ def serialize_channel_counts(
     }
 
 
+def serialize_resolution_statistics(
+    min_pixel_count: int,
+    max_pixel_count: int,
+    average_pixel_count: float,
+) -> dict[str, int | float]:
+    """Return raw pixel counts and decimal megapixel values."""
+
+    return {
+        "minimum_pixels": min_pixel_count,
+        "maximum_pixels": max_pixel_count,
+        "average_pixels": average_pixel_count,
+        "minimum_megapixels": round(
+            min_pixel_count / 1_000_000,
+            6,
+        ),
+        "maximum_megapixels": round(
+            max_pixel_count / 1_000_000,
+            6,
+        ),
+        "average_megapixels": round(
+            average_pixel_count / 1_000_000,
+            6,
+        ),
+    }
+
+
 def serialize_invalid_image_diagnostics(
     diagnostics: Sequence[InvalidImageDiagnostic],
 ) -> list[dict[str, object]]:

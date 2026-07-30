@@ -25,6 +25,9 @@ def create_statistics() -> DatasetStatistics:
         min_height=480,
         max_height=720,
         average_height=600.0,
+        min_pixel_count=307_200,
+        max_pixel_count=2_073_600,
+        average_pixel_count=1_190_400.0,
         total_size_bytes=2048,
         extension_counts={
             "webp": 1,
@@ -64,6 +67,7 @@ def test_format_dataset_csv() -> None:
         "invalid_images",
         "extension_counts",
         "channel_counts",
+        "resolution_statistics",
         "invalid_image_diagnostics",
         "min_width",
         "max_width",
@@ -88,19 +92,27 @@ def test_format_dataset_csv() -> None:
         "10": 1,
     }
     assert list(json.loads(values[5])) == ["1", "2", "10"]
-    assert json.loads(values[6]) == [
+    assert json.loads(values[6]) == {
+        "minimum_pixels": 307_200,
+        "maximum_pixels": 2_073_600,
+        "average_pixels": 1_190_400.0,
+        "minimum_megapixels": 0.3072,
+        "maximum_megapixels": 2.0736,
+        "average_megapixels": 1.1904,
+    }
+    assert json.loads(values[7]) == [
         {
             "image_path": "data/a-corrupt.jpg",
             "errors": ["Image could not be decoded."],
         }
     ]
-    assert values[7] == "640"
-    assert values[8] == "1280"
-    assert values[9] == "906.67"
-    assert values[10] == "480"
-    assert values[11] == "720"
-    assert values[12] == "600.00"
-    assert values[13] == "2048"
+    assert values[8] == "640"
+    assert values[9] == "1280"
+    assert values[10] == "906.67"
+    assert values[11] == "480"
+    assert values[12] == "720"
+    assert values[13] == "600.00"
+    assert values[14] == "2048"
 
 
 def test_format_dataset_csv_escapes_extension_json() -> None:
@@ -146,7 +158,7 @@ def test_format_dataset_csv_escapes_and_sorts_diagnostics() -> None:
     rows = list(csv.reader(io.StringIO(result)))
 
     assert len(rows) == 2
-    assert json.loads(rows[1][6]) == [
+    assert json.loads(rows[1][7]) == [
         {
             "image_path": "data/a-corrupt.jpg",
             "errors": ["Image could not be decoded."],
@@ -176,6 +188,9 @@ def test_format_dataset_csv_with_no_images() -> None:
     stats.min_height = 0
     stats.max_height = 0
     stats.average_height = 0.0
+    stats.min_pixel_count = 0
+    stats.max_pixel_count = 0
+    stats.average_pixel_count = 0.0
     stats.total_size_bytes = 0
     stats.invalid_image_diagnostics = []
 
@@ -188,4 +203,12 @@ def test_format_dataset_csv_with_no_images() -> None:
 
     assert json.loads(rows[1][4]) == {}
     assert json.loads(rows[1][5]) == {}
-    assert json.loads(rows[1][6]) == []
+    assert json.loads(rows[1][6]) == {
+        "minimum_pixels": 0,
+        "maximum_pixels": 0,
+        "average_pixels": 0.0,
+        "minimum_megapixels": 0.0,
+        "maximum_megapixels": 0.0,
+        "average_megapixels": 0.0,
+    }
+    assert json.loads(rows[1][7]) == []
