@@ -9,6 +9,8 @@ only by default and can optionally include nested directories.
 ```text
 poseidon-dataset-summary DATASET_PATH
     [--recursive]
+    [--min-width PIXELS]
+    [--min-height PIXELS]
     [--json]
     [--format {text,json,csv,markdown}]
     [--output OUTPUT]
@@ -28,14 +30,15 @@ python -m poseidon_ai.nautilus_vision.dataset_summary DATASET_PATH
 | Option | Meaning |
 |--------|---------|
 | `--recursive` | Search for images in nested directories. |
+| `--min-width PIXELS` | Set the minimum valid image width; default: `32`. |
+| `--min-height PIXELS` | Set the minimum valid image height; default: `32`. |
 | `--format {text,json,csv,markdown}` | Select the report format; default: `text`. |
 | `--json` | Backward-compatible shortcut that selects JSON. |
 | `--output PATH` | Write UTF-8 output to a file instead of standard output. |
 | `-h`, `--help` | Show argparse help and exit. |
 
 If `--json` and `--format` are both supplied, `--json` takes precedence.
-
-The CLI does not currently expose validation-threshold options.
+Width and height thresholds must be positive integers.
 
 ## Examples
 
@@ -117,6 +120,38 @@ The equivalent module invocation accepts the same option:
 ```bash
 python -m poseidon_ai.nautilus_vision.dataset_summary data/sample_dataset --recursive
 ```
+
+## Validation thresholds
+
+The minimum valid width and height both default to 32 pixels. The thresholds
+are independent positive integers: either option can be supplied without the
+other.
+
+Lower thresholds can allow smaller decodable images:
+
+```bash
+poseidon-dataset-summary data/sample_dataset --min-width 10 --min-height 10
+```
+
+Higher thresholds can classify an otherwise valid image as invalid:
+
+```bash
+poseidon-dataset-summary data/sample_dataset --min-width 100 --min-height 40
+```
+
+Thresholds work with recursive scanning and structured output:
+
+```bash
+poseidon-dataset-summary data/sample_dataset --recursive --min-width 64 --min-height 64 --format json
+```
+
+Images that fail custom thresholds remain successful dataset-analysis
+results. Their width and height errors appear in invalid-image diagnostics;
+they are not operational CLI failures. Zero, negative, or non-integer option
+values are argparse usage errors and return status 2.
+
+Threshold values affect validation only. They are not included in the text,
+JSON, CSV, or Markdown report schemas.
 
 ## Text output
 
@@ -241,7 +276,6 @@ than becoming CLI errors.
 
 ## Current limitations
 
-- Validation uses the current default minimum of 32×32 pixels.
 - The parent of an `--output` path is not created automatically.
 
 ## Troubleshooting
@@ -278,10 +312,10 @@ suffix: `.bmp`, `.jpg`, `.jpeg`, `.png`, `.tif`, `.tiff`, or `.webp`.
 
 ### Images are counted as invalid
 
-A supported file must be decodable by OpenCV and at least 32 pixels wide and
-32 pixels high. Each report includes the invalid path and every captured
-validation error; use those diagnostics to identify decoding or dimension
-failures.
+A supported file must be decodable by OpenCV and meet the configured minimum
+width and height, which both default to 32 pixels. Each report includes the
+invalid path and every captured validation error. Adjust `--min-width` and
+`--min-height` when smaller images are intentionally acceptable.
 
 ### Output-file errors
 

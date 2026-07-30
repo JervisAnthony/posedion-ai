@@ -29,8 +29,8 @@ work.
 - Discovers supported image files in deterministic path order.
 - Loads images with OpenCV and extracts filename, dimensions, channel count,
   and file size.
-- Validates file existence, supported extensions, decodability, and minimum
-  dimensions.
+- Validates file existence, supported extensions, decodability, and
+  independently configurable minimum dimensions, defaulting to 32 pixels.
 - Resizes and pads images while preserving aspect ratio.
 - Analyzes valid and invalid image counts, width and height statistics, valid
   image bytes, and normalized extension counts.
@@ -107,6 +107,9 @@ poseidon-dataset-summary path/to/dataset
 
 # Include images in nested directories
 poseidon-dataset-summary path/to/dataset --recursive
+
+# Require images to be at least 64 pixels wide and high
+poseidon-dataset-summary path/to/dataset --min-width 64 --min-height 64
 
 # JSON using the format selector
 poseidon-dataset-summary path/to/dataset --format json
@@ -237,7 +240,7 @@ python -m pytest tests/test_dataset_summary.py -v
 GitHub Actions runs the complete test suite on Ubuntu and Windows with
 Python 3.13.
 
-The suite contained 79 passing tests when this documentation was verified.
+The suite contained 103 passing tests when this documentation was verified.
 
 ## Project structure
 

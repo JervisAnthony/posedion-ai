@@ -182,7 +182,8 @@ def test_main_prints_text_summary(
     monkeypatch.setattr(
         dataset_summary,
         "analyze_dataset",
-        lambda dataset_path, *, recursive=False: create_statistics(),
+        lambda dataset_path, *, recursive=False, min_width=32,
+        min_height=32: create_statistics(),
     )
 
     monkeypatch.setattr(
@@ -261,7 +262,8 @@ def test_main_prints_empty_image_formats(
     monkeypatch.setattr(
         dataset_summary,
         "analyze_dataset",
-        lambda dataset_path, *, recursive=False: stats,
+        lambda dataset_path, *, recursive=False, min_width=32,
+        min_height=32: stats,
     )
     monkeypatch.setattr(
         sys,
@@ -286,7 +288,8 @@ def test_main_prints_json_summary(
     monkeypatch.setattr(
         dataset_summary,
         "analyze_dataset",
-        lambda dataset_path, *, recursive=False: create_statistics(),
+        lambda dataset_path, *, recursive=False, min_width=32,
+        min_height=32: create_statistics(),
     )
 
     monkeypatch.setattr(
@@ -353,7 +356,8 @@ def test_main_prints_csv_summary(
     monkeypatch.setattr(
         dataset_summary,
         "analyze_dataset",
-        lambda dataset_path, *, recursive=False: create_statistics(),
+        lambda dataset_path, *, recursive=False, min_width=32,
+        min_height=32: create_statistics(),
     )
 
     monkeypatch.setattr(
@@ -422,7 +426,8 @@ def test_json_shortcut_takes_precedence_over_format(
     monkeypatch.setattr(
         dataset_summary,
         "analyze_dataset",
-        lambda dataset_path, *, recursive=False: create_statistics(),
+        lambda dataset_path, *, recursive=False, min_width=32,
+        min_height=32: create_statistics(),
     )
 
     monkeypatch.setattr(
@@ -464,7 +469,8 @@ def test_main_writes_summary_to_file(
     monkeypatch.setattr(
         dataset_summary,
         "analyze_dataset",
-        lambda dataset_path, *, recursive=False: create_statistics(),
+        lambda dataset_path, *, recursive=False, min_width=32,
+        min_height=32: create_statistics(),
     )
 
     output_path = tmp_path / "report.txt"
@@ -500,7 +506,8 @@ def test_main_prints_markdown_summary(
     monkeypatch.setattr(
         dataset_summary,
         "analyze_dataset",
-        lambda dataset_path, *, recursive=False: stats,
+        lambda dataset_path, *, recursive=False, min_width=32,
+        min_height=32: stats,
     )
 
     monkeypatch.setattr(
@@ -701,6 +708,8 @@ def test_main_reports_dataset_filesystem_failure(
         dataset_path: Path,
         *,
         recursive: bool = False,
+        min_width: int = 32,
+        min_height: int = 32,
     ) -> DatasetStatistics:
         raise PermissionError("permission denied")
 
@@ -791,6 +800,8 @@ def test_main_does_not_hide_unexpected_errors(
         dataset_path: Path,
         *,
         recursive: bool = False,
+        min_width: int = 32,
+        min_height: int = 32,
     ) -> DatasetStatistics:
         raise RuntimeError("unexpected")
 
@@ -970,6 +981,8 @@ def test_main_forwards_recursive_flag_to_analyzer(
         dataset_path: Path,
         *,
         recursive: bool = False,
+        min_width: int = 32,
+        min_height: int = 32,
     ) -> DatasetStatistics:
         received_recursive.append(recursive)
         return create_statistics()
@@ -1053,6 +1066,8 @@ def test_main_help_lists_recursive_option(
 
     assert error.value.code == 0
     assert "--recursive" in captured.out
+    assert "--min-width PIXELS" in captured.out
+    assert "--min-height PIXELS" in captured.out
     assert captured.err == ""
 
 
@@ -1081,4 +1096,311 @@ def test_main_rejects_recursive_option_value(
     assert error.value.code == 2
     assert captured.out == ""
     assert "unrecognized arguments: true" in captured.err
+    assert "Traceback" not in captured.err
+
+
+@pytest.mark.parametrize(
+    ("arguments", "expected_thresholds"),
+    [
+        ([], (32, 32)),
+        (["--min-width", "64"], (64, 32)),
+        (["--min-height", "48"], (32, 48)),
+        (
+            [
+                "--min-width",
+                "64",
+                "--min-height",
+                "48",
+            ],
+            (64, 48),
+        ),
+    ],
+)
+def test_main_forwards_validation_thresholds(
+    arguments: list[str],
+    expected_thresholds: tuple[int, int],
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Forward independent threshold values to the analyzer."""
+
+    received_thresholds: list[tuple[int, int]] = []
+
+    def record_thresholds(
+        dataset_path: Path,
+        *,
+        recursive: bool = False,
+        min_width: int = 32,
+        min_height: int = 32,
+    ) -> DatasetStatistics:
+        received_thresholds.append((min_width, min_height))
+        return create_statistics()
+
+    monkeypatch.setattr(
+        dataset_summary,
+        "analyze_dataset",
+        record_thresholds,
+    )
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "dataset-summary",
+            "data/sample_dataset",
+            *arguments,
+        ],
+    )
+
+    assert dataset_summary.main() == 0
+    assert received_thresholds == [expected_thresholds]
+    assert capsys.readouterr().err == ""
+
+
+def test_main_default_thresholds_reject_small_image(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Keep a 20-by-20 image invalid under CLI defaults."""
+
+    create_test_image(
+        tmp_path / "small.png",
+        width=20,
+        height=20,
+    )
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "dataset-summary",
+            str(tmp_path),
+            "--format",
+            "json",
+        ],
+    )
+
+    assert dataset_summary.main() == 0
+
+    captured = capsys.readouterr()
+    payload = json.loads(captured.out)
+
+    assert payload["valid_images"] == 0
+    assert payload["invalid_images"] == 1
+    assert payload["invalid_image_diagnostics"][0]["errors"] == [
+        "Width 20px is below minimum 32px.",
+        "Height 20px is below minimum 32px.",
+    ]
+    assert captured.err == ""
+
+
+def test_main_lower_thresholds_accept_small_image(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Allow a small image under deliberate lower CLI thresholds."""
+
+    create_test_image(
+        tmp_path / "small.png",
+        width=20,
+        height=20,
+    )
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "dataset-summary",
+            str(tmp_path),
+            "--min-width",
+            "10",
+            "--min-height",
+            "10",
+            "--format",
+            "json",
+        ],
+    )
+
+    assert dataset_summary.main() == 0
+
+    captured = capsys.readouterr()
+    payload = json.loads(captured.out)
+
+    assert payload["valid_images"] == 1
+    assert payload["invalid_images"] == 0
+    assert payload["invalid_image_diagnostics"] == []
+    assert captured.err == ""
+
+
+def test_main_higher_width_produces_invalid_diagnostic(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Treat a custom validation failure as a successful result."""
+
+    create_test_image(
+        tmp_path / "image.png",
+        width=50,
+        height=60,
+    )
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "dataset-summary",
+            str(tmp_path),
+            "--min-width",
+            "100",
+            "--min-height",
+            "40",
+            "--format",
+            "json",
+        ],
+    )
+
+    assert dataset_summary.main() == 0
+
+    captured = capsys.readouterr()
+    payload = json.loads(captured.out)
+
+    assert payload["valid_images"] == 0
+    assert payload["invalid_images"] == 1
+    assert payload["invalid_image_diagnostics"][0]["errors"] == [
+        "Width 50px is below minimum 100px.",
+    ]
+    assert captured.err == ""
+
+
+def test_main_custom_thresholds_apply_recursively(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Apply custom thresholds to nested images."""
+
+    nested_directory = tmp_path / "nested"
+    nested_directory.mkdir()
+    create_test_image(
+        nested_directory / "small.png",
+        width=20,
+        height=20,
+    )
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "dataset-summary",
+            str(tmp_path),
+            "--recursive",
+            "--min-width",
+            "10",
+            "--min-height",
+            "10",
+            "--format",
+            "json",
+        ],
+    )
+
+    assert dataset_summary.main() == 0
+
+    captured = capsys.readouterr()
+    payload = json.loads(captured.out)
+
+    assert payload["total_images"] == 1
+    assert payload["valid_images"] == 1
+    assert payload["invalid_images"] == 0
+    assert captured.err == ""
+
+
+def test_main_custom_thresholds_write_output_file(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Write custom-threshold results through the existing output path."""
+
+    create_test_image(
+        tmp_path / "small.png",
+        width=20,
+        height=20,
+    )
+    output_path = tmp_path / "summary.json"
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "dataset-summary",
+            str(tmp_path),
+            "--min-width",
+            "10",
+            "--min-height",
+            "10",
+            "--format",
+            "json",
+            "--output",
+            str(output_path),
+        ],
+    )
+
+    assert dataset_summary.main() == 0
+
+    captured = capsys.readouterr()
+    payload = json.loads(output_path.read_text(encoding="utf-8"))
+
+    assert payload["valid_images"] == 1
+    assert payload["invalid_images"] == 0
+    assert captured.out == ""
+    assert captured.err == ""
+
+
+@pytest.mark.parametrize(
+    "arguments",
+    [
+        ["--min-width", "0"],
+        ["--min-height", "0"],
+        ["--min-width", "-1"],
+        ["--min-height", "-1"],
+        ["--min-width", "abc"],
+        ["--min-height", "12.5"],
+    ],
+)
+def test_main_rejects_invalid_threshold_before_analysis(
+    arguments: list[str],
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Keep invalid thresholds as argparse status-2 failures."""
+
+    def fail_if_called(
+        dataset_path: Path,
+        *,
+        recursive: bool = False,
+        min_width: int = 32,
+        min_height: int = 32,
+    ) -> DatasetStatistics:
+        raise AssertionError("analyzer must not be called")
+
+    monkeypatch.setattr(
+        dataset_summary,
+        "analyze_dataset",
+        fail_if_called,
+    )
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "dataset-summary",
+            "data/sample_dataset",
+            *arguments,
+        ],
+    )
+
+    with pytest.raises(SystemExit) as error:
+        dataset_summary.main()
+
+    captured = capsys.readouterr()
+
+    assert error.value.code == 2
+    assert captured.out == ""
+    assert "must be a positive integer" in captured.err
     assert "Traceback" not in captured.err

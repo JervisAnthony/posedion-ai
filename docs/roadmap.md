@@ -13,6 +13,8 @@ exploratory entries are not delivery commitments and have no assigned dates.
 - Supported-image dataset discovery
 - Optional recursive discovery in the internal loader API
 - Optional recursive dataset scanning through the `--recursive` CLI flag
+- Configurable minimum width and height through `--min-width` and
+  `--min-height`
 - Aspect-ratio-preserving letterbox preprocessing
 - Dataset totals, valid/invalid counts, dimensions, and valid-image size
 - Normalized image-extension statistics
@@ -35,7 +37,6 @@ exploratory entries are not delivery commitments and have no assigned dates.
 
 ### Planned
 
-- Configurable validation thresholds
 - Channel statistics
 - Resolution statistics
 - Duplicate-image detection

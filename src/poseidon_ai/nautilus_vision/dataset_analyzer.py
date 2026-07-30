@@ -10,13 +10,19 @@ from poseidon_ai.nautilus_vision.dataset_statistics import (
     InvalidImageDiagnostic,
 )
 from poseidon_ai.nautilus_vision.image_metadata import get_image_metadata
-from poseidon_ai.nautilus_vision.image_validator import validate_image
+from poseidon_ai.nautilus_vision.image_validator import (
+    DEFAULT_MIN_HEIGHT,
+    DEFAULT_MIN_WIDTH,
+    validate_image,
+)
 
 
 def analyze_dataset(
     dataset_path: str | Path,
     *,
     recursive: bool = False,
+    min_width: int = DEFAULT_MIN_WIDTH,
+    min_height: int = DEFAULT_MIN_HEIGHT,
 ) -> DatasetStatistics:
     """Analyze an image dataset and compute summary statistics.
 
@@ -26,6 +32,10 @@ def analyze_dataset(
         Directory containing the image dataset.
     recursive:
         Search nested directories when True.
+    min_width:
+        Minimum valid image width in pixels.
+    min_height:
+        Minimum valid image height in pixels.
 
     Returns
     -------
@@ -57,7 +67,11 @@ def analyze_dataset(
             stats.extension_counts.get(extension, 0) + 1
         )
 
-        validation_result = validate_image(image_path)
+        validation_result = validate_image(
+            image_path,
+            min_width=min_width,
+            min_height=min_height,
+        )
 
         if not validation_result.is_valid:
             stats.invalid_images += 1
