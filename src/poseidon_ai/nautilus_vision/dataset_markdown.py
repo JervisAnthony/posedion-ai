@@ -53,6 +53,20 @@ def format_dataset_markdown(
     else:
         image_formats = ["No supported image files found."]
 
+    if stats.channel_counts:
+        image_channels = [
+            "| Channels | Images |",
+            "|---------:|-------:|",
+            *[
+                f"| {channels} | {count} |"
+                for channels, count in sorted(
+                    stats.channel_counts.items()
+                )
+            ],
+        ]
+    else:
+        image_channels = ["No valid image channel data found."]
+
     if stats.invalid_image_diagnostics:
         invalid_image_diagnostics = []
         for diagnostic in sorted(
@@ -95,6 +109,10 @@ def format_dataset_markdown(
         "## Image Formats",
         "",
         *image_formats,
+        "",
+        "## Image Channels",
+        "",
+        *image_channels,
         "",
         "## Invalid Image Diagnostics",
         "",

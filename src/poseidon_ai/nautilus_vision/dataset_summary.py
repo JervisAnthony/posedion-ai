@@ -14,6 +14,7 @@ from poseidon_ai.nautilus_vision.dataset_markdown import (
     format_dataset_markdown,
 )
 from poseidon_ai.nautilus_vision.dataset_serialization import (
+    serialize_channel_counts,
     serialize_invalid_image_diagnostics,
 )
 from poseidon_ai.nautilus_vision.dataset_statistics import DatasetStatistics
@@ -41,6 +42,16 @@ def format_dataset_summary(
         )
     else:
         image_formats = "No supported image files found."
+
+    if stats.channel_counts:
+        image_channel_lines = []
+        for channels, count in sorted(stats.channel_counts.items()):
+            unit = "channel" if channels == 1 else "channels"
+            label = f"{channels} {unit}"
+            image_channel_lines.append(f"{label:<19}: {count}")
+        image_channels = "\n".join(image_channel_lines)
+    else:
+        image_channels = "No valid image channel data found."
 
     if stats.invalid_image_diagnostics:
         invalid_image_diagnostics = "\n\n".join(
@@ -75,6 +86,10 @@ def format_dataset_summary(
         "Image Formats\n"
         "-------------\n"
         f"{image_formats}\n"
+        "\n"
+        "Image Channels\n"
+        "--------------\n"
+        f"{image_channels}\n"
         "\n"
         "Invalid Image Diagnostics\n"
         "-------------------------\n"
@@ -111,6 +126,9 @@ def format_dataset_summary_json(
         "invalid_images": stats.invalid_images,
         "extension_counts": dict(
             sorted(stats.extension_counts.items())
+        ),
+        "channel_counts": serialize_channel_counts(
+            stats.channel_counts
         ),
         "invalid_image_diagnostics": (
             serialize_invalid_image_diagnostics(

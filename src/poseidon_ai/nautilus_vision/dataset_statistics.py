@@ -39,3 +39,4 @@ class DatasetStatistics:
     invalid_image_diagnostics: list[InvalidImageDiagnostic] = field(
         default_factory=list
     )
+    channel_counts: dict[int, int] = field(default_factory=dict)

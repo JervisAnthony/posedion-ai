@@ -29,6 +29,11 @@ def create_statistics() -> DatasetStatistics:
             "jpeg": 2,
             "png": 1,
         },
+        channel_counts={
+            10: 1,
+            1: 1,
+            2: 1,
+        },
         invalid_image_diagnostics=[
             InvalidImageDiagnostic(
                 image_path=Path("data/a-corrupt.jpg"),
@@ -51,6 +56,7 @@ def test_format_dataset_markdown() -> None:
     assert "# Dataset Summary" in result
     assert "## Overview" in result
     assert "## Image Formats" in result
+    assert "## Image Channels" in result
     assert "## Invalid Image Diagnostics" in result
     assert "## Width" in result
     assert "## Height" in result
@@ -65,6 +71,15 @@ def test_format_dataset_markdown() -> None:
     assert "| WEBP | 1 |" in result
     assert result.index("| JPEG |") < result.index("| PNG |")
     assert result.index("| PNG |") < result.index("| WEBP |")
+    assert "| Channels | Images |" in result
+    assert "| 1 | 1 |" in result
+    assert "| 2 | 1 |" in result
+    assert "| 10 | 1 |" in result
+    assert result.index("| 1 | 1 |") < result.index("| 2 | 1 |")
+    assert result.index("| 2 | 1 |") < result.index("| 10 | 1 |")
+    assert result.index("## Image Channels") < result.index(
+        "## Invalid Image Diagnostics"
+    )
     assert "### `data/a-corrupt.jpg`" in result
     assert "- Image could not be decoded." in result
 
@@ -84,6 +99,7 @@ def test_format_dataset_markdown_with_no_images() -> None:
 
     stats = create_statistics()
     stats.extension_counts = {}
+    stats.channel_counts = {}
     stats.total_images = 0
     stats.valid_images = 0
     stats.invalid_images = 0
@@ -103,6 +119,7 @@ def test_format_dataset_markdown_with_no_images() -> None:
 
     assert "## Image Formats" in result
     assert "No supported image files found." in result
+    assert "No valid image channel data found." in result
     assert "No invalid images found." in result
 
 

@@ -1,9 +1,12 @@
 import cv2
 import numpy as np
+import pytest
 
 from pathlib import Path
 
+import poseidon_ai.nautilus_vision.dataset_analyzer as dataset_analyzer
 from poseidon_ai.nautilus_vision.dataset_analyzer import analyze_dataset
+from poseidon_ai.nautilus_vision.image_metadata import get_image_metadata
 
 def create_test_image(
     path: Path,
@@ -33,6 +36,7 @@ def test_analyze_empty_dataset(tmp_path: Path) -> None:
     assert stats.valid_images == 0
     assert stats.invalid_images == 0
     assert stats.extension_counts == {}
+    assert stats.channel_counts == {}
 
 def test_analyze_single_valid_image(
     tmp_path: Path,
@@ -49,6 +53,8 @@ def test_analyze_single_valid_image(
     assert stats.valid_images == 1
     assert stats.invalid_images == 0
     assert stats.extension_counts == {"jpeg": 1}
+    assert stats.channel_counts == {3: 1}
+    assert sum(stats.channel_counts.values()) == stats.valid_images
     assert sum(stats.extension_counts.values()) == stats.total_images
 
     assert stats.min_width == 100
@@ -78,6 +84,8 @@ def test_analyze_mixed_valid_and_invalid_images(
     assert stats.valid_images == 1
     assert stats.invalid_images == 1
     assert stats.extension_counts == {"jpeg": 2}
+    assert stats.channel_counts == {3: 1}
+    assert sum(stats.channel_counts.values()) == stats.valid_images
     assert sum(stats.extension_counts.values()) == stats.total_images
 
     assert stats.total_size_bytes > 0
@@ -99,6 +107,67 @@ def test_analyze_ignores_unsupported_files(
     assert stats.valid_images == 1
     assert stats.invalid_images == 0
     assert stats.extension_counts == {"jpeg": 1}
+
+
+def test_analyze_aggregates_matching_channel_counts(
+    tmp_path: Path,
+) -> None:
+    """Aggregate multiple valid images with the decoded channel count."""
+
+    create_test_image(tmp_path / "first.jpg")
+    create_test_image(tmp_path / "second.png")
+
+    stats = analyze_dataset(tmp_path)
+
+    assert stats.channel_counts == {3: 2}
+    assert sum(stats.channel_counts.values()) == stats.valid_images
+
+
+def test_analyze_sorts_distinct_channel_counts_numerically(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Sort metadata-provided channel values as integers."""
+
+    first_path = tmp_path / "two.png"
+    second_path = tmp_path / "ten.png"
+    create_test_image(first_path)
+    create_test_image(second_path)
+
+    def metadata_with_distinct_channels(image_path: Path) -> dict:
+        metadata = get_image_metadata(image_path)
+        metadata["channels"] = {
+            "two.png": 2,
+            "ten.png": 10,
+        }[image_path.name]
+        return metadata
+
+    monkeypatch.setattr(
+        dataset_analyzer,
+        "get_image_metadata",
+        metadata_with_distinct_channels,
+    )
+
+    stats = analyze_dataset(tmp_path)
+
+    assert stats.channel_counts == {2: 1, 10: 1}
+    assert list(stats.channel_counts) == [2, 10]
+    assert sum(stats.channel_counts.values()) == stats.valid_images
+
+
+def test_analyze_recursive_images_contribute_channel_counts(
+    tmp_path: Path,
+) -> None:
+    """Include metadata channels from nested valid images when enabled."""
+
+    nested_directory = tmp_path / "nested"
+    nested_directory.mkdir()
+    create_test_image(nested_directory / "fish.png")
+
+    stats = analyze_dataset(tmp_path, recursive=True)
+
+    assert stats.channel_counts == {3: 1}
+    assert sum(stats.channel_counts.values()) == stats.valid_images
 
 
 def test_analyze_counts_mixed_supported_extensions(
@@ -193,6 +262,7 @@ def test_analyze_dataset_preserves_multiple_validation_errors(
     stats = analyze_dataset(tmp_path)
 
     assert stats.invalid_images == 1
+    assert stats.channel_counts == {}
     assert len(stats.invalid_image_diagnostics) == 1
 
     diagnostic = stats.invalid_image_diagnostics[0]
@@ -220,6 +290,7 @@ def test_analyze_dataset_keeps_default_validation_thresholds(
 
     assert stats.valid_images == 0
     assert stats.invalid_images == 1
+    assert stats.channel_counts == {}
     assert stats.invalid_image_diagnostics[0].errors == (
         "Width 20px is below minimum 32px.",
         "Height 20px is below minimum 32px.",
@@ -246,6 +317,8 @@ def test_analyze_dataset_accepts_lower_validation_thresholds(
     assert stats.total_images == 1
     assert stats.valid_images == 1
     assert stats.invalid_images == 0
+    assert stats.channel_counts == {3: 1}
+    assert sum(stats.channel_counts.values()) == stats.valid_images
     assert stats.invalid_image_diagnostics == []
 
 
@@ -265,6 +338,7 @@ def test_analyze_dataset_applies_custom_width_independently(
 
     assert stats.valid_images == 0
     assert stats.invalid_images == 1
+    assert stats.channel_counts == {}
     assert stats.invalid_image_diagnostics[0].image_path == image_path
     assert stats.invalid_image_diagnostics[0].errors == (
         "Width 50px is below minimum 100px.",

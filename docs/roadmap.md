@@ -18,6 +18,8 @@ exploratory entries are not delivery commitments and have no assigned dates.
 - Aspect-ratio-preserving letterbox preprocessing
 - Dataset totals, valid/invalid counts, dimensions, and valid-image size
 - Normalized image-extension statistics
+- Decoded valid-image channel distribution statistics across all report
+  formats
 - Structured invalid-image diagnostics in every dataset report
 - Text, JSON, CSV, and Markdown dataset reports
 - UTF-8 report file output
@@ -37,7 +39,6 @@ exploratory entries are not delivery commitments and have no assigned dates.
 
 ### Planned
 
-- Channel statistics
 - Resolution statistics
 - Duplicate-image detection
 - Dataset manifest export

@@ -71,21 +71,24 @@ cannot load the requested image.
 `nautilus_vision/dataset_analyzer.py` coordinates discovery and validation.
 It counts every supported candidate, normalizes and counts its extension,
 records invalid-image diagnostics, and collects size and dimension data for
-valid images. It computes minimum, maximum, and arithmetic mean dimensions
-when at least one image is valid. Its keyword-only minimum width and height
-default to the validator constants and are forwarded directly to
-`validate_image`.
+valid images. It also aggregates the decoded channel count already present in
+each valid image's metadata, without adding another image decode. It computes
+minimum, maximum, and arithmetic mean dimensions when at least one image is
+valid. Its keyword-only minimum width and height default to the validator
+constants and are forwarded directly to `validate_image`.
 
 `total_size_bytes` is the sum of valid-image file sizes. Invalid candidates
-still contribute to `total_images` and `extension_counts`.
+still contribute to `total_images` and `extension_counts`, but not to channel
+counts.
 
 ### `DatasetStatistics`
 
 `nautilus_vision/dataset_statistics.py` defines the mutable aggregate passed
 from analysis to presentation. It contains dataset identity, valid and
 invalid counts, dimensions, valid-image bytes, normalized extension counts,
-and invalid-image diagnostics. Collection fields use independent default
-factories.
+numeric decoded channel counts for valid images, and invalid-image
+diagnostics. Collection fields use independent default factories. The model
+keeps channel keys as integers and does not attach inferred colour semantics.
 
 ### `InvalidImageDiagnostic`
 
@@ -98,22 +101,24 @@ and all captured errors without reading or validating the image again.
 
 `nautilus_vision/dataset_summary.py` contains the human-readable text
 formatter and JSON formatter. Text uses uppercase image-format labels and a
-formatted size, followed by diagnostics grouped under portable paths. JSON
-preserves normalized lowercase extension keys, includes raw and formatted
-sizes, and represents diagnostics as explicit dictionaries with error arrays.
+numeric Image Channels section, followed by diagnostics grouped under
+portable paths and a formatted size. JSON preserves normalized lowercase
+extension keys, converts numerically ordered channel keys to strings, includes
+raw and formatted sizes, and represents diagnostics as explicit dictionaries
+with error arrays.
 
 ### CSV formatter
 
 `nautilus_vision/dataset_csv.py` uses `csv.writer` and `io.StringIO`. It has a
-stable thirteen-column schema. The `extension_counts` cell is a JSON object
-and `invalid_image_diagnostics` is a JSON array in one cell. Both are
-serialized with `json.dumps`, so formats do not create dynamic columns and
-commas and quotation marks are correctly escaped.
+stable fourteen-column schema. The `extension_counts` and `channel_counts`
+cells are JSON objects, and `invalid_image_diagnostics` is a JSON array in one
+cell. They are serialized with `json.dumps`, so formats do not create dynamic
+columns and commas and quotation marks are correctly escaped.
 
 ### Markdown formatter
 
-`nautilus_vision/dataset_markdown.py` renders Overview, Image Formats,
-Invalid Image Diagnostics, Width, Height, and Dataset Size sections.
+`nautilus_vision/dataset_markdown.py` renders Overview, Image Formats, Image
+Channels, Invalid Image Diagnostics, Width, Height, and Dataset Size sections.
 Diagnostic paths use portable separators and safe code-span delimiters, and
 error bullets escape Markdown punctuation.
 
@@ -162,7 +167,9 @@ without rediscovering or revalidating files. Isolated formatters keep
 presentation-specific concerns—JSON types, CSV escaping, Markdown tables,
 and text alignment—out of the analysis path and allow the CLI registry to
 select a format consistently. Diagnostic reporting reads the structured
-analysis result; it never performs a second validation pass.
+analysis result; it never performs a second validation pass. Channel
+statistics likewise use metadata already collected for valid images and do
+not trigger another decode.
 
 ## Analyzer invariants
 
@@ -172,6 +179,7 @@ expected:
 ```text
 total_images == valid_images + invalid_images
 sum(extension_counts.values()) == total_images
+sum(channel_counts.values()) == valid_images
 len(invalid_image_diagnostics) == invalid_images
 ```
 
@@ -179,8 +187,10 @@ These invariants are analyzer behavior, not validation enforced by the
 `DatasetStatistics` dataclass. Callers can manually construct a statistics
 object whose fields do not satisfy them.
 
-When no valid images exist, all width and height statistics remain zero and
-`total_size_bytes` is zero.
+When no valid images exist, channel counts are empty, all width and height
+statistics remain zero, and `total_size_bytes` is zero. Channel values
+describe decoded array channel counts from the current metadata pipeline, not
+inferred colour modes.
 
 ## Extension normalization
 
