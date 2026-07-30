@@ -20,6 +20,7 @@ from poseidon_ai.nautilus_vision.dataset_markdown import (
     format_dataset_markdown,
 )
 from poseidon_ai.nautilus_vision.dataset_serialization import (
+    serialize_aspect_ratio_statistics,
     serialize_channel_counts,
     serialize_duplicate_images,
     serialize_invalid_image_diagnostics,
@@ -75,6 +76,23 @@ def format_dataset_summary(
         )
     else:
         image_resolution = "No valid image resolution data found."
+
+    if stats.valid_images:
+        image_aspect_ratios = (
+            f"Minimum Ratio      : {stats.min_aspect_ratio:.2f}\n"
+            f"Maximum Ratio      : {stats.max_aspect_ratio:.2f}\n"
+            f"Average Ratio      : {stats.average_aspect_ratio:.2f}\n"
+            "Landscape Images   : "
+            f"{stats.orientation_counts.get('landscape', 0)}\n"
+            "Portrait Images    : "
+            f"{stats.orientation_counts.get('portrait', 0)}\n"
+            "Square Images      : "
+            f"{stats.orientation_counts.get('square', 0)}"
+        )
+    else:
+        image_aspect_ratios = (
+            "No valid image aspect ratio data found."
+        )
 
     duplicate_data = serialize_duplicate_images(
         stats.duplicate_image_groups
@@ -147,6 +165,10 @@ def format_dataset_summary(
         "----------------\n"
         f"{image_resolution}\n"
         "\n"
+        "Image Aspect Ratios\n"
+        "-------------------\n"
+        f"{image_aspect_ratios}\n"
+        "\n"
         "Exact Duplicate Images\n"
         "----------------------\n"
         f"{duplicate_images}\n"
@@ -194,6 +216,12 @@ def format_dataset_summary_json(
             stats.min_pixel_count,
             stats.max_pixel_count,
             stats.average_pixel_count,
+        ),
+        "aspect_ratio_statistics": serialize_aspect_ratio_statistics(
+            stats.min_aspect_ratio,
+            stats.max_aspect_ratio,
+            stats.average_aspect_ratio,
+            stats.orientation_counts,
         ),
         "duplicate_images": serialize_duplicate_images(
             stats.duplicate_image_groups

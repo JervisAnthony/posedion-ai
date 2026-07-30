@@ -47,11 +47,16 @@ class DatasetStatistics:
     max_pixel_count: int = 0
     average_pixel_count: float = 0.0
 
+    min_aspect_ratio: float = 0.0
+    max_aspect_ratio: float = 0.0
+    average_aspect_ratio: float = 0.0
+
     extension_counts: dict[str, int] = field(default_factory=dict)
     invalid_image_diagnostics: list[InvalidImageDiagnostic] = field(
         default_factory=list
     )
     channel_counts: dict[int, int] = field(default_factory=dict)
+    orientation_counts: dict[str, int] = field(default_factory=dict)
     duplicate_image_groups: list[DuplicateImageGroup] = field(
         default_factory=list
     )

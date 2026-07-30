@@ -29,6 +29,14 @@ def create_statistics() -> DatasetStatistics:
         min_pixel_count=307_200,
         max_pixel_count=2_073_600,
         average_pixel_count=1_190_400.0,
+        min_aspect_ratio=0.5,
+        max_aspect_ratio=2.0,
+        average_aspect_ratio=7 / 6,
+        orientation_counts={
+            "landscape": 1,
+            "portrait": 1,
+            "square": 1,
+        },
         total_size_bytes=2048,
         extension_counts={
             "webp": 1,
@@ -79,6 +87,7 @@ def test_format_dataset_csv() -> None:
         "extension_counts",
         "channel_counts",
         "resolution_statistics",
+        "aspect_ratio_statistics",
         "duplicate_images",
         "invalid_image_diagnostics",
         "min_width",
@@ -113,6 +122,23 @@ def test_format_dataset_csv() -> None:
         "average_megapixels": 1.1904,
     }
     assert json.loads(values[7]) == {
+        "minimum": 0.5,
+        "maximum": 2.0,
+        "average": 1.166667,
+        "orientation_counts": {
+            "landscape": 1,
+            "portrait": 1,
+            "square": 1,
+        },
+    }
+    assert list(
+        json.loads(values[7])["orientation_counts"]
+    ) == ["landscape", "portrait", "square"]
+    assert all(
+        isinstance(json.loads(values[7])[key], float)
+        for key in ("minimum", "maximum", "average")
+    )
+    assert json.loads(values[8]) == {
         "group_count": 1,
         "file_count": 3,
         "redundant_copy_count": 2,
@@ -127,19 +153,19 @@ def test_format_dataset_csv() -> None:
             }
         ],
     }
-    assert json.loads(values[8]) == [
+    assert json.loads(values[9]) == [
         {
             "image_path": "data/a-corrupt.jpg",
             "errors": ["Image could not be decoded."],
         }
     ]
-    assert values[9] == "640"
-    assert values[10] == "1280"
-    assert values[11] == "906.67"
-    assert values[12] == "480"
-    assert values[13] == "720"
-    assert values[14] == "600.00"
-    assert values[15] == "2048"
+    assert values[10] == "640"
+    assert values[11] == "1280"
+    assert values[12] == "906.67"
+    assert values[13] == "480"
+    assert values[14] == "720"
+    assert values[15] == "600.00"
+    assert values[16] == "2048"
 
 
 def test_format_dataset_csv_escapes_extension_json() -> None:
@@ -185,7 +211,7 @@ def test_format_dataset_csv_escapes_and_sorts_diagnostics() -> None:
     rows = list(csv.reader(io.StringIO(result)))
 
     assert len(rows) == 2
-    assert json.loads(rows[1][8]) == [
+    assert json.loads(rows[1][9]) == [
         {
             "image_path": "data/a-corrupt.jpg",
             "errors": ["Image could not be decoded."],
@@ -219,6 +245,10 @@ def test_format_dataset_csv_with_no_images() -> None:
     stats.min_pixel_count = 0
     stats.max_pixel_count = 0
     stats.average_pixel_count = 0.0
+    stats.min_aspect_ratio = 0.0
+    stats.max_aspect_ratio = 0.0
+    stats.average_aspect_ratio = 0.0
+    stats.orientation_counts = {}
     stats.total_size_bytes = 0
     stats.invalid_image_diagnostics = []
 
@@ -240,9 +270,51 @@ def test_format_dataset_csv_with_no_images() -> None:
         "average_megapixels": 0.0,
     }
     assert json.loads(rows[1][7]) == {
+        "minimum": 0.0,
+        "maximum": 0.0,
+        "average": 0.0,
+        "orientation_counts": {
+            "landscape": 0,
+            "portrait": 0,
+            "square": 0,
+        },
+    }
+    assert json.loads(rows[1][8]) == {
         "group_count": 0,
         "file_count": 0,
         "redundant_copy_count": 0,
         "groups": [],
     }
-    assert json.loads(rows[1][8]) == []
+    assert json.loads(rows[1][9]) == []
+
+
+def test_format_dataset_csv_fills_missing_orientation_categories() -> None:
+    """Serialize every supported orientation in stable order."""
+
+    stats = create_statistics()
+    stats.orientation_counts = {"portrait": 3}
+
+    rows = list(
+        csv.reader(
+            io.StringIO(
+                format_dataset_csv(
+                    Path("data/sample_dataset"),
+                    stats,
+                )
+            )
+        )
+    )
+    orientation_counts = json.loads(rows[1][7])[
+        "orientation_counts"
+    ]
+
+    assert orientation_counts == {
+        "landscape": 0,
+        "portrait": 3,
+        "square": 0,
+    }
+    assert list(orientation_counts) == [
+        "landscape",
+        "portrait",
+        "square",
+    ]

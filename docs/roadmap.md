@@ -21,6 +21,8 @@ exploratory entries are not delivery commitments and have no assigned dates.
 - Decoded valid-image channel distribution statistics across all report
   formats
 - Valid-image pixel-area and megapixel statistics across every report format
+- Valid-image aspect-ratio and landscape, portrait, and square orientation
+  statistics across every aggregate report format
 - SHA-256 exact duplicate detection for valid images across every report
   format
 - Deterministic per-image JSONL manifest export with validation, metadata,

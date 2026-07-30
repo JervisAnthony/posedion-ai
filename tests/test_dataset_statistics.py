@@ -24,8 +24,12 @@ def test_dataset_statistics_defaults() -> None:
     assert stats.min_pixel_count == 0
     assert stats.max_pixel_count == 0
     assert stats.average_pixel_count == 0.0
+    assert stats.min_aspect_ratio == 0.0
+    assert stats.max_aspect_ratio == 0.0
+    assert stats.average_aspect_ratio == 0.0
     assert stats.extension_counts == {}
     assert stats.channel_counts == {}
+    assert stats.orientation_counts == {}
     assert stats.duplicate_image_groups == []
     assert stats.duplicate_group_count == 0
     assert stats.duplicate_file_count == 0
@@ -53,6 +57,17 @@ def test_channel_counts_default_is_not_shared() -> None:
     first.channel_counts[3] = 1
 
     assert second.channel_counts == {}
+
+
+def test_orientation_counts_default_is_not_shared() -> None:
+    """Each DatasetStatistics instance should own orientation counts."""
+
+    first = DatasetStatistics(dataset_path=Path("first"))
+    second = DatasetStatistics(dataset_path=Path("second"))
+
+    first.orientation_counts["landscape"] = 1
+
+    assert second.orientation_counts == {}
 
 
 def test_duplicate_image_groups_default_is_not_shared() -> None:

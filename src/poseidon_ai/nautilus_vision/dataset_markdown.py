@@ -92,6 +92,31 @@ def format_dataset_markdown(
             "No valid image resolution data found."
         ]
 
+    if stats.valid_images:
+        image_aspect_ratios = [
+            "| Metric | Value |",
+            "|--------|------:|",
+            f"| Minimum Ratio | {stats.min_aspect_ratio:.2f} |",
+            f"| Maximum Ratio | {stats.max_aspect_ratio:.2f} |",
+            f"| Average Ratio | {stats.average_aspect_ratio:.2f} |",
+            (
+                "| Landscape Images | "
+                f"{stats.orientation_counts.get('landscape', 0)} |"
+            ),
+            (
+                "| Portrait Images | "
+                f"{stats.orientation_counts.get('portrait', 0)} |"
+            ),
+            (
+                "| Square Images | "
+                f"{stats.orientation_counts.get('square', 0)} |"
+            ),
+        ]
+    else:
+        image_aspect_ratios = [
+            "No valid image aspect ratio data found."
+        ]
+
     duplicate_data = serialize_duplicate_images(
         stats.duplicate_image_groups
     )
@@ -183,6 +208,10 @@ def format_dataset_markdown(
         "## Image Resolution",
         "",
         *image_resolution,
+        "",
+        "## Image Aspect Ratios",
+        "",
+        *image_aspect_ratios,
         "",
         "## Exact Duplicate Images",
         "",

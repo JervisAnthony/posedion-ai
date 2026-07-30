@@ -46,6 +46,26 @@ def serialize_resolution_statistics(
     }
 
 
+def serialize_aspect_ratio_statistics(
+    min_aspect_ratio: float,
+    max_aspect_ratio: float,
+    average_aspect_ratio: float,
+    orientation_counts: Mapping[str, int],
+) -> dict[str, object]:
+    """Return rounded aspect ratios and ordered orientation counts."""
+
+    return {
+        "minimum": round(min_aspect_ratio, 6),
+        "maximum": round(max_aspect_ratio, 6),
+        "average": round(average_aspect_ratio, 6),
+        "orientation_counts": {
+            "landscape": orientation_counts.get("landscape", 0),
+            "portrait": orientation_counts.get("portrait", 0),
+            "square": orientation_counts.get("square", 0),
+        },
+    }
+
+
 def serialize_duplicate_images(
     duplicate_groups: Sequence[DuplicateImageGroup],
 ) -> dict[str, object]:

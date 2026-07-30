@@ -57,6 +57,14 @@ def create_statistics() -> DatasetStatistics:
         min_pixel_count=307_200,
         max_pixel_count=2_073_600,
         average_pixel_count=1_190_400.0,
+        min_aspect_ratio=0.5,
+        max_aspect_ratio=2.0,
+        average_aspect_ratio=7 / 6,
+        orientation_counts={
+            "landscape": 1,
+            "portrait": 1,
+            "square": 1,
+        },
         total_size_bytes=2048,
         extension_counts={
             "webp": 1,
@@ -149,6 +157,32 @@ def test_format_dataset_summary_json() -> None:
         "maximum_megapixels": 2.0736,
         "average_megapixels": 1.1904,
     }
+    assert payload["aspect_ratio_statistics"] == {
+        "minimum": 0.5,
+        "maximum": 2.0,
+        "average": 1.166667,
+        "orientation_counts": {
+            "landscape": 1,
+            "portrait": 1,
+            "square": 1,
+        },
+    }
+    assert list(
+        payload["aspect_ratio_statistics"]["orientation_counts"]
+    ) == ["landscape", "portrait", "square"]
+    assert all(
+        isinstance(
+            payload["aspect_ratio_statistics"][key],
+            float,
+        )
+        for key in ("minimum", "maximum", "average")
+    )
+    assert all(
+        isinstance(count, int)
+        for count in payload["aspect_ratio_statistics"][
+            "orientation_counts"
+        ].values()
+    )
     assert payload["duplicate_images"] == {
         "group_count": 1,
         "file_count": 3,
@@ -197,6 +231,7 @@ def test_format_dataset_summary_json() -> None:
         "extension_counts",
         "channel_counts",
         "resolution_statistics",
+        "aspect_ratio_statistics",
         "duplicate_images",
         "invalid_image_diagnostics",
         "width",
@@ -204,6 +239,13 @@ def test_format_dataset_summary_json() -> None:
         "total_size_bytes",
         "formatted_size",
     }
+    payload_keys = list(payload)
+    assert payload_keys.index(
+        "resolution_statistics"
+    ) < payload_keys.index("aspect_ratio_statistics")
+    assert payload_keys.index(
+        "aspect_ratio_statistics"
+    ) < payload_keys.index("duplicate_images")
 
 
 def test_format_dataset_summary_json_with_no_images() -> None:
@@ -225,6 +267,10 @@ def test_format_dataset_summary_json_with_no_images() -> None:
     stats.min_pixel_count = 0
     stats.max_pixel_count = 0
     stats.average_pixel_count = 0.0
+    stats.min_aspect_ratio = 0.0
+    stats.max_aspect_ratio = 0.0
+    stats.average_aspect_ratio = 0.0
+    stats.orientation_counts = {}
     stats.total_size_bytes = 0
     stats.invalid_image_diagnostics = []
 
@@ -242,6 +288,16 @@ def test_format_dataset_summary_json_with_no_images() -> None:
         "minimum_megapixels": 0.0,
         "maximum_megapixels": 0.0,
         "average_megapixels": 0.0,
+    }
+    assert json.loads(result)["aspect_ratio_statistics"] == {
+        "minimum": 0.0,
+        "maximum": 0.0,
+        "average": 0.0,
+        "orientation_counts": {
+            "landscape": 0,
+            "portrait": 0,
+            "square": 0,
+        },
     }
     assert json.loads(result)["duplicate_images"] == {
         "group_count": 0,
@@ -330,10 +386,20 @@ def test_main_prints_text_summary(
     assert "Minimum MP        : 0.31" in captured.out
     assert "Maximum MP        : 2.07" in captured.out
     assert "Average MP        : 1.19" in captured.out
+    assert "Image Aspect Ratios" in captured.out
+    assert "Minimum Ratio      : 0.50" in captured.out
+    assert "Maximum Ratio      : 2.00" in captured.out
+    assert "Average Ratio      : 1.17" in captured.out
+    assert "Landscape Images   : 1" in captured.out
+    assert "Portrait Images    : 1" in captured.out
+    assert "Square Images      : 1" in captured.out
     assert captured.out.index("Image Channels") < captured.out.index(
         "Image Resolution"
     )
     assert captured.out.index("Image Resolution") < captured.out.index(
+        "Image Aspect Ratios"
+    )
+    assert captured.out.index("Image Aspect Ratios") < captured.out.index(
         "Exact Duplicate Images"
     )
     assert "Exact Duplicate Images" in captured.out
@@ -405,6 +471,14 @@ def test_text_summary_with_no_valid_images() -> None:
     stats.min_pixel_count = 0
     stats.max_pixel_count = 0
     stats.average_pixel_count = 0.0
+    stats.min_aspect_ratio = 0.0
+    stats.max_aspect_ratio = 0.0
+    stats.average_aspect_ratio = 0.0
+    stats.orientation_counts = {
+        "landscape": 0,
+        "portrait": 0,
+        "square": 0,
+    }
 
     result = format_dataset_summary(
         Path("data/sample_dataset"),
@@ -413,6 +487,7 @@ def test_text_summary_with_no_valid_images() -> None:
 
     assert "No valid image channel data found." in result
     assert "No valid image resolution data found." in result
+    assert "No valid image aspect ratio data found." in result
     assert "No exact duplicate images found." in result
     assert "Invalid Image Diagnostics" in result
 
@@ -617,6 +692,7 @@ def test_main_prints_csv_summary(
         "extension_counts",
         "channel_counts",
         "resolution_statistics",
+        "aspect_ratio_statistics",
         "duplicate_images",
         "invalid_image_diagnostics",
         "min_width",
@@ -642,6 +718,11 @@ def test_main_prints_csv_summary(
             '"minimum_megapixels": 0.3072, '
             '"maximum_megapixels": 2.0736, '
             '"average_megapixels": 1.1904}'
+        ),
+        (
+            '{"minimum": 0.5, "maximum": 2.0, '
+            '"average": 1.166667, "orientation_counts": '
+            '{"landscape": 1, "portrait": 1, "square": 1}}'
         ),
         (
             '{"group_count": 1, "file_count": 3, '
@@ -779,10 +860,17 @@ def test_main_prints_markdown_summary(
     assert "| JPEG | 2 |" in captured.out
     assert "## Image Channels" in captured.out
     assert "## Image Resolution" in captured.out
+    assert "## Image Aspect Ratios" in captured.out
     assert "## Exact Duplicate Images" in captured.out
     assert "| Minimum | 307,200 | 0.31 |" in captured.out
     assert "| Maximum | 2,073,600 | 2.07 |" in captured.out
     assert "| Average | 1,190,400.00 | 1.19 |" in captured.out
+    assert "| Minimum Ratio | 0.50 |" in captured.out
+    assert "| Maximum Ratio | 2.00 |" in captured.out
+    assert "| Average Ratio | 1.17 |" in captured.out
+    assert "| Landscape Images | 1 |" in captured.out
+    assert "| Portrait Images | 1 |" in captured.out
+    assert "| Square Images | 1 |" in captured.out
     assert "| Duplicate Groups | 1 |" in captured.out
     assert f"**SHA-256:** `{'a' * 64}`" in captured.out
     assert "## Invalid Image Diagnostics" in captured.out
@@ -1930,6 +2018,16 @@ def test_main_writes_recursive_manifest_and_json_report(
     assert report["valid_images"] == 2
     assert report["invalid_images"] == 1
     assert report["duplicate_images"]["group_count"] == 1
+    assert report["aspect_ratio_statistics"] == {
+        "minimum": 1.0,
+        "maximum": 1.0,
+        "average": 1.0,
+        "orientation_counts": {
+            "landscape": 0,
+            "portrait": 0,
+            "square": 2,
+        },
+    }
     assert records_by_path["source.png"][
         "duplicate_group_sha256"
     ] == digest
@@ -1975,6 +2073,16 @@ def test_main_manifest_respects_custom_thresholds(
 
     assert report["valid_images"] == 0
     assert report["invalid_images"] == 1
+    assert report["aspect_ratio_statistics"] == {
+        "minimum": 0.0,
+        "maximum": 0.0,
+        "average": 0.0,
+        "orientation_counts": {
+            "landscape": 0,
+            "portrait": 0,
+            "square": 0,
+        },
+    }
     assert record["is_valid"] is False
     assert record["validation_errors"] == [
         "Width 50px is below minimum 100px."

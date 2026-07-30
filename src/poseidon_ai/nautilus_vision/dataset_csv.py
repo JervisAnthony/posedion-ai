@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 
 from poseidon_ai.nautilus_vision.dataset_serialization import (
+    serialize_aspect_ratio_statistics,
     serialize_channel_counts,
     serialize_duplicate_images,
     serialize_invalid_image_diagnostics,
@@ -34,6 +35,7 @@ def format_dataset_csv(
             "extension_counts",
             "channel_counts",
             "resolution_statistics",
+            "aspect_ratio_statistics",
             "duplicate_images",
             "invalid_image_diagnostics",
             "min_width",
@@ -62,6 +64,14 @@ def format_dataset_csv(
                     stats.min_pixel_count,
                     stats.max_pixel_count,
                     stats.average_pixel_count,
+                )
+            ),
+            json.dumps(
+                serialize_aspect_ratio_statistics(
+                    stats.min_aspect_ratio,
+                    stats.max_aspect_ratio,
+                    stats.average_aspect_ratio,
+                    stats.orientation_counts,
                 )
             ),
             json.dumps(
