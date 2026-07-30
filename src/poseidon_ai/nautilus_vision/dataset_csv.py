@@ -5,6 +5,7 @@ from pathlib import Path
 
 from poseidon_ai.nautilus_vision.dataset_serialization import (
     serialize_channel_counts,
+    serialize_duplicate_images,
     serialize_invalid_image_diagnostics,
     serialize_resolution_statistics,
 )
@@ -33,6 +34,7 @@ def format_dataset_csv(
             "extension_counts",
             "channel_counts",
             "resolution_statistics",
+            "duplicate_images",
             "invalid_image_diagnostics",
             "min_width",
             "max_width",
@@ -60,6 +62,11 @@ def format_dataset_csv(
                     stats.min_pixel_count,
                     stats.max_pixel_count,
                     stats.average_pixel_count,
+                )
+            ),
+            json.dumps(
+                serialize_duplicate_images(
+                    stats.duplicate_image_groups
                 )
             ),
             json.dumps(

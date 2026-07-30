@@ -7,8 +7,10 @@ from pathlib import Path
 from poseidon_ai.nautilus_vision.dataset_loader import load_image_dataset
 from poseidon_ai.nautilus_vision.dataset_statistics import (
     DatasetStatistics,
+    DuplicateImageGroup,
     InvalidImageDiagnostic,
 )
+from poseidon_ai.nautilus_vision.image_hash import calculate_sha256
 from poseidon_ai.nautilus_vision.image_metadata import get_image_metadata
 from poseidon_ai.nautilus_vision.image_validator import (
     DEFAULT_MIN_HEIGHT,
@@ -55,6 +57,7 @@ def analyze_dataset(
     widths: list[int] = []
     heights: list[int] = []
     pixel_counts: list[int] = []
+    size_to_paths: dict[int, list[Path]] = {}
 
     for image_path in image_paths:
         stats.total_images += 1
@@ -90,6 +93,10 @@ def analyze_dataset(
 
         stats.valid_images += 1
         stats.total_size_bytes += metadata["size_bytes"]
+        size_to_paths.setdefault(
+            metadata["size_bytes"],
+            [],
+        ).append(image_path)
 
         channels = metadata["channels"]
         stats.channel_counts[channels] = (
@@ -117,6 +124,44 @@ def analyze_dataset(
             sum(pixel_counts) / len(pixel_counts)
         )
 
+    duplicate_groups: list[DuplicateImageGroup] = []
+    for candidate_paths in size_to_paths.values():
+        if len(candidate_paths) < 2:
+            continue
+
+        digest_to_paths: dict[str, list[Path]] = {}
+        for image_path in candidate_paths:
+            digest = calculate_sha256(image_path)
+            digest_to_paths.setdefault(digest, []).append(image_path)
+
+        for digest, matching_paths in digest_to_paths.items():
+            if len(matching_paths) < 2:
+                continue
+
+            sorted_paths = tuple(
+                sorted(
+                    matching_paths,
+                    key=lambda path: (
+                        path.as_posix().casefold(),
+                        path.as_posix(),
+                    ),
+                )
+            )
+            duplicate_groups.append(
+                DuplicateImageGroup(
+                    sha256=digest,
+                    image_paths=sorted_paths,
+                )
+            )
+
+    stats.duplicate_image_groups = sorted(
+        duplicate_groups,
+        key=lambda group: (
+            group.image_paths[0].as_posix().casefold(),
+            group.image_paths[0].as_posix(),
+            group.sha256,
+        ),
+    )
     stats.extension_counts = dict(sorted(stats.extension_counts.items()))
     stats.channel_counts = dict(sorted(stats.channel_counts.items()))
 

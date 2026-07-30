@@ -2,6 +2,7 @@ from pathlib import Path
 
 from poseidon_ai.nautilus_vision.dataset_statistics import (
     DatasetStatistics,
+    DuplicateImageGroup,
     InvalidImageDiagnostic,
 )
 
@@ -25,6 +26,10 @@ def test_dataset_statistics_defaults() -> None:
     assert stats.average_pixel_count == 0.0
     assert stats.extension_counts == {}
     assert stats.channel_counts == {}
+    assert stats.duplicate_image_groups == []
+    assert stats.duplicate_group_count == 0
+    assert stats.duplicate_file_count == 0
+    assert stats.redundant_copy_count == 0
     assert stats.invalid_image_diagnostics == []
 
 
@@ -48,6 +53,58 @@ def test_channel_counts_default_is_not_shared() -> None:
     first.channel_counts[3] = 1
 
     assert second.channel_counts == {}
+
+
+def test_duplicate_image_groups_default_is_not_shared() -> None:
+    """Each DatasetStatistics instance should own its duplicate groups."""
+
+    first = DatasetStatistics(dataset_path=Path("first"))
+    second = DatasetStatistics(dataset_path=Path("second"))
+
+    first.duplicate_image_groups.append(
+        DuplicateImageGroup(
+            sha256="a" * 64,
+            image_paths=(
+                Path("first/a.jpg"),
+                Path("first/b.jpg"),
+            ),
+        )
+    )
+
+    assert second.duplicate_image_groups == []
+
+
+def test_duplicate_counts_are_derived_from_groups() -> None:
+    """Derive group, file, and redundant-copy counts."""
+
+    stats = DatasetStatistics(
+        dataset_path=Path("dataset"),
+        duplicate_image_groups=[
+            DuplicateImageGroup(
+                sha256="a" * 64,
+                image_paths=(
+                    Path("dataset/a.jpg"),
+                    Path("dataset/b.jpg"),
+                ),
+            ),
+            DuplicateImageGroup(
+                sha256="b" * 64,
+                image_paths=(
+                    Path("dataset/c.png"),
+                    Path("dataset/d.png"),
+                    Path("dataset/e.png"),
+                ),
+            ),
+        ],
+    )
+
+    assert stats.duplicate_group_count == 2
+    assert stats.duplicate_file_count == 5
+    assert stats.redundant_copy_count == 3
+    assert (
+        stats.redundant_copy_count
+        == stats.duplicate_file_count - stats.duplicate_group_count
+    )
 
 
 def test_invalid_image_diagnostics_default_is_not_shared() -> None:

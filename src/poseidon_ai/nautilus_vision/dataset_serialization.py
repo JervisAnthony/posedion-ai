@@ -1,8 +1,10 @@
 """Shared serialization helpers for Nautilus Vision dataset reports."""
 
 from collections.abc import Mapping, Sequence
+from pathlib import Path
 
 from poseidon_ai.nautilus_vision.dataset_statistics import (
+    DuplicateImageGroup,
     InvalidImageDiagnostic,
 )
 
@@ -41,6 +43,56 @@ def serialize_resolution_statistics(
             average_pixel_count / 1_000_000,
             6,
         ),
+    }
+
+
+def serialize_duplicate_images(
+    duplicate_groups: Sequence[DuplicateImageGroup],
+) -> dict[str, object]:
+    """Return exact duplicate groups in a deterministic structure."""
+
+    sorted_groups: list[tuple[str, tuple[Path, ...]]] = []
+    for group in duplicate_groups:
+        image_paths = tuple(
+            sorted(
+                group.image_paths,
+                key=lambda path: (
+                    path.as_posix().casefold(),
+                    path.as_posix(),
+                ),
+            )
+        )
+        sorted_groups.append(
+            (group.sha256, image_paths)
+        )
+
+    sorted_groups.sort(
+        key=lambda group: (
+            group[1][0].as_posix().casefold(),
+            group[1][0].as_posix(),
+            group[0],
+        )
+    )
+    file_count = sum(
+        len(image_paths)
+        for _, image_paths in sorted_groups
+    )
+    group_count = len(sorted_groups)
+
+    return {
+        "group_count": group_count,
+        "file_count": file_count,
+        "redundant_copy_count": file_count - group_count,
+        "groups": [
+            {
+                "sha256": digest,
+                "image_paths": [
+                    path.as_posix()
+                    for path in image_paths
+                ],
+            }
+            for digest, image_paths in sorted_groups
+        ],
     }
 
 

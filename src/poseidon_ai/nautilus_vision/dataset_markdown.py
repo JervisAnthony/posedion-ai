@@ -1,5 +1,8 @@
 from pathlib import Path
 
+from poseidon_ai.nautilus_vision.dataset_serialization import (
+    serialize_duplicate_images,
+)
 from poseidon_ai.nautilus_vision.dataset_statistics import (
     DatasetStatistics,
 )
@@ -89,6 +92,47 @@ def format_dataset_markdown(
             "No valid image resolution data found."
         ]
 
+    duplicate_data = serialize_duplicate_images(
+        stats.duplicate_image_groups
+    )
+    if stats.duplicate_image_groups:
+        duplicate_images = [
+            "| Metric | Value |",
+            "|--------|------:|",
+            (
+                "| Duplicate Groups | "
+                f"{duplicate_data['group_count']} |"
+            ),
+            (
+                "| Files in Groups | "
+                f"{duplicate_data['file_count']} |"
+            ),
+            (
+                "| Redundant Copies | "
+                f"{duplicate_data['redundant_copy_count']} |"
+            ),
+        ]
+        for group_number, group in enumerate(
+            duplicate_data["groups"],
+            start=1,
+        ):
+            duplicate_images.extend(
+                [
+                    "",
+                    f"### Duplicate Group {group_number}",
+                    "",
+                    "**SHA-256:** "
+                    + _format_inline_code(group["sha256"]),
+                    "",
+                    *[
+                        "- " + _format_inline_code(image_path)
+                        for image_path in group["image_paths"]
+                    ],
+                ]
+            )
+    else:
+        duplicate_images = ["No exact duplicate images found."]
+
     if stats.invalid_image_diagnostics:
         invalid_image_diagnostics = []
         for diagnostic in sorted(
@@ -139,6 +183,10 @@ def format_dataset_markdown(
         "## Image Resolution",
         "",
         *image_resolution,
+        "",
+        "## Exact Duplicate Images",
+        "",
+        *duplicate_images,
         "",
         "## Invalid Image Diagnostics",
         "",

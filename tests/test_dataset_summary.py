@@ -5,6 +5,7 @@ import io
 import json
 import sys
 from pathlib import Path
+from shutil import copyfile
 
 import cv2
 import numpy as np
@@ -13,12 +14,14 @@ import pytest
 import poseidon_ai.nautilus_vision.dataset_summary as dataset_summary
 from poseidon_ai.nautilus_vision.dataset_statistics import (
     DatasetStatistics,
+    DuplicateImageGroup,
     InvalidImageDiagnostic,
 )
 from poseidon_ai.nautilus_vision.dataset_summary import (
     format_dataset_summary,
     format_dataset_summary_json,
 )
+from poseidon_ai.nautilus_vision.image_hash import calculate_sha256
 
 
 def create_test_image(
@@ -61,6 +64,16 @@ def create_statistics() -> DatasetStatistics:
             1: 1,
             2: 1,
         },
+        duplicate_image_groups=[
+            DuplicateImageGroup(
+                sha256="a" * 64,
+                image_paths=(
+                    Path("data/copy-c.jpg"),
+                    Path("data/copy-a.jpg"),
+                    Path("data/copy-b.jpg"),
+                ),
+            )
+        ],
         invalid_image_diagnostics=[
             InvalidImageDiagnostic(
                 image_path=Path("data/a-corrupt.jpg"),
@@ -132,6 +145,32 @@ def test_format_dataset_summary_json() -> None:
         "maximum_megapixels": 2.0736,
         "average_megapixels": 1.1904,
     }
+    assert payload["duplicate_images"] == {
+        "group_count": 1,
+        "file_count": 3,
+        "redundant_copy_count": 2,
+        "groups": [
+            {
+                "sha256": "a" * 64,
+                "image_paths": [
+                    "data/copy-a.jpg",
+                    "data/copy-b.jpg",
+                    "data/copy-c.jpg",
+                ],
+            }
+        ],
+    }
+    assert all(
+        isinstance(
+            payload["duplicate_images"][key],
+            int,
+        )
+        for key in (
+            "group_count",
+            "file_count",
+            "redundant_copy_count",
+        )
+    )
     assert all(
         isinstance(value, int | float)
         for value in payload["resolution_statistics"].values()
@@ -154,6 +193,7 @@ def test_format_dataset_summary_json() -> None:
         "extension_counts",
         "channel_counts",
         "resolution_statistics",
+        "duplicate_images",
         "invalid_image_diagnostics",
         "width",
         "height",
@@ -168,6 +208,7 @@ def test_format_dataset_summary_json_with_no_images() -> None:
     stats = create_statistics()
     stats.extension_counts = {}
     stats.channel_counts = {}
+    stats.duplicate_image_groups = []
     stats.total_images = 0
     stats.valid_images = 0
     stats.invalid_images = 0
@@ -197,6 +238,12 @@ def test_format_dataset_summary_json_with_no_images() -> None:
         "minimum_megapixels": 0.0,
         "maximum_megapixels": 0.0,
         "average_megapixels": 0.0,
+    }
+    assert json.loads(result)["duplicate_images"] == {
+        "group_count": 0,
+        "file_count": 0,
+        "redundant_copy_count": 0,
+        "groups": [],
     }
     assert json.loads(result)["invalid_image_diagnostics"] == []
 
@@ -283,6 +330,23 @@ def test_main_prints_text_summary(
         "Image Resolution"
     )
     assert captured.out.index("Image Resolution") < captured.out.index(
+        "Exact Duplicate Images"
+    )
+    assert "Exact Duplicate Images" in captured.out
+    assert "Duplicate Groups   : 1" in captured.out
+    assert "Files in Groups    : 3" in captured.out
+    assert "Redundant Copies   : 2" in captured.out
+    assert f"SHA-256            : {'a' * 64}" in captured.out
+    assert "- data/copy-a.jpg" in captured.out
+    assert "- data/copy-b.jpg" in captured.out
+    assert "- data/copy-c.jpg" in captured.out
+    assert captured.out.index("data/copy-a.jpg") < captured.out.index(
+        "data/copy-b.jpg"
+    )
+    assert captured.out.index("data/copy-b.jpg") < captured.out.index(
+        "data/copy-c.jpg"
+    )
+    assert captured.out.index("Exact Duplicate Images") < captured.out.index(
         "Invalid Image Diagnostics"
     )
     assert "Invalid Image Diagnostics" in captured.out
@@ -333,6 +397,7 @@ def test_text_summary_with_no_valid_images() -> None:
     stats = create_statistics()
     stats.valid_images = 0
     stats.channel_counts = {}
+    stats.duplicate_image_groups = []
     stats.min_pixel_count = 0
     stats.max_pixel_count = 0
     stats.average_pixel_count = 0.0
@@ -344,6 +409,7 @@ def test_text_summary_with_no_valid_images() -> None:
 
     assert "No valid image channel data found." in result
     assert "No valid image resolution data found." in result
+    assert "No exact duplicate images found." in result
     assert "Invalid Image Diagnostics" in result
 
 
@@ -443,6 +509,68 @@ def test_main_reports_analyzer_diagnostics(
     ]
 
 
+def test_main_writes_recursive_exact_duplicates_to_json(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Expose analyzer duplicate groups through recursive file output."""
+
+    nested_directory = tmp_path / "nested"
+    nested_directory.mkdir()
+    source_path = tmp_path / "source.png"
+    nested_copy = nested_directory / "copy.png"
+    create_test_image(source_path)
+    copyfile(source_path, nested_copy)
+    invalid_content = b"identical but not decodable"
+    first_invalid = tmp_path / "broken-a.jpg"
+    second_invalid = tmp_path / "broken-b.jpg"
+    first_invalid.write_bytes(invalid_content)
+    second_invalid.write_bytes(invalid_content)
+    output_path = tmp_path / "report.json"
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "dataset-summary",
+            str(tmp_path),
+            "--recursive",
+            "--format",
+            "json",
+            "--output",
+            str(output_path),
+        ],
+    )
+
+    assert dataset_summary.main() == 0
+
+    captured = capsys.readouterr()
+    payload = json.loads(output_path.read_text(encoding="utf-8"))
+    duplicate_images = payload["duplicate_images"]
+
+    assert payload["valid_images"] == 2
+    assert payload["invalid_images"] == 2
+    assert duplicate_images == {
+        "group_count": 1,
+        "file_count": 2,
+        "redundant_copy_count": 1,
+        "groups": [
+            {
+                "sha256": calculate_sha256(source_path),
+                "image_paths": [
+                    nested_copy.as_posix(),
+                    source_path.as_posix(),
+                ],
+            }
+        ],
+    }
+    serialized_paths = duplicate_images["groups"][0]["image_paths"]
+    assert first_invalid.as_posix() not in serialized_paths
+    assert second_invalid.as_posix() not in serialized_paths
+    assert captured.out == ""
+    assert captured.err == ""
+
+
 def test_main_prints_csv_summary(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
@@ -485,6 +613,7 @@ def test_main_prints_csv_summary(
         "extension_counts",
         "channel_counts",
         "resolution_statistics",
+        "duplicate_images",
         "invalid_image_diagnostics",
         "min_width",
         "max_width",
@@ -509,6 +638,14 @@ def test_main_prints_csv_summary(
             '"minimum_megapixels": 0.3072, '
             '"maximum_megapixels": 2.0736, '
             '"average_megapixels": 1.1904}'
+        ),
+        (
+            '{"group_count": 1, "file_count": 3, '
+            '"redundant_copy_count": 2, "groups": '
+            '[{"sha256": "'
+            + "a" * 64
+            + '", "image_paths": ["data/copy-a.jpg", '
+            '"data/copy-b.jpg", "data/copy-c.jpg"]}]}'
         ),
         (
             '[{"image_path": "data/a-corrupt.jpg", '
@@ -638,9 +775,12 @@ def test_main_prints_markdown_summary(
     assert "| JPEG | 2 |" in captured.out
     assert "## Image Channels" in captured.out
     assert "## Image Resolution" in captured.out
+    assert "## Exact Duplicate Images" in captured.out
     assert "| Minimum | 307,200 | 0.31 |" in captured.out
     assert "| Maximum | 2,073,600 | 2.07 |" in captured.out
     assert "| Average | 1,190,400.00 | 1.19 |" in captured.out
+    assert "| Duplicate Groups | 1 |" in captured.out
+    assert f"**SHA-256:** `{'a' * 64}`" in captured.out
     assert "## Invalid Image Diagnostics" in captured.out
     assert "### `data/a-corrupt.jpg`" in captured.out
     assert "| Average | 906.67 |" in captured.out
