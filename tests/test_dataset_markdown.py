@@ -27,6 +27,14 @@ def create_statistics() -> DatasetStatistics:
         min_pixel_count=307_200,
         max_pixel_count=2_073_600,
         average_pixel_count=1_190_400.0,
+        min_aspect_ratio=0.5,
+        max_aspect_ratio=2.0,
+        average_aspect_ratio=7 / 6,
+        orientation_counts={
+            "landscape": 1,
+            "portrait": 1,
+            "square": 1,
+        },
         total_size_bytes=2048,
         extension_counts={
             "webp": 1,
@@ -72,6 +80,7 @@ def test_format_dataset_markdown() -> None:
     assert "## Image Formats" in result
     assert "## Image Channels" in result
     assert "## Image Resolution" in result
+    assert "## Image Aspect Ratios" in result
     assert "## Exact Duplicate Images" in result
     assert "## Invalid Image Diagnostics" in result
     assert "## Width" in result
@@ -97,6 +106,9 @@ def test_format_dataset_markdown() -> None:
         "## Image Resolution"
     )
     assert result.index("## Image Resolution") < result.index(
+        "## Image Aspect Ratios"
+    )
+    assert result.index("## Image Aspect Ratios") < result.index(
         "## Exact Duplicate Images"
     )
     assert result.index("## Exact Duplicate Images") < result.index(
@@ -106,6 +118,12 @@ def test_format_dataset_markdown() -> None:
     assert "| Minimum | 307,200 | 0.31 |" in result
     assert "| Maximum | 2,073,600 | 2.07 |" in result
     assert "| Average | 1,190,400.00 | 1.19 |" in result
+    assert "| Minimum Ratio | 0.50 |" in result
+    assert "| Maximum Ratio | 2.00 |" in result
+    assert "| Average Ratio | 1.17 |" in result
+    assert "| Landscape Images | 1 |" in result
+    assert "| Portrait Images | 1 |" in result
+    assert "| Square Images | 1 |" in result
     assert "| Duplicate Groups | 1 |" in result
     assert "| Files in Groups | 3 |" in result
     assert "| Redundant Copies | 2 |" in result
@@ -153,6 +171,10 @@ def test_format_dataset_markdown_with_no_images() -> None:
     stats.min_pixel_count = 0
     stats.max_pixel_count = 0
     stats.average_pixel_count = 0.0
+    stats.min_aspect_ratio = 0.0
+    stats.max_aspect_ratio = 0.0
+    stats.average_aspect_ratio = 0.0
+    stats.orientation_counts = {}
     stats.total_size_bytes = 0
     stats.invalid_image_diagnostics = []
 
@@ -165,6 +187,7 @@ def test_format_dataset_markdown_with_no_images() -> None:
     assert "No supported image files found." in result
     assert "No valid image channel data found." in result
     assert "No valid image resolution data found." in result
+    assert "No valid image aspect ratio data found." in result
     assert "No exact duplicate images found." in result
     assert "No invalid images found." in result
 

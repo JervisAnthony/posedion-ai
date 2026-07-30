@@ -964,3 +964,215 @@ def test_manifest_analysis_empty_dataset_has_empty_tuple(
 
     assert result.manifest_entries == ()
     assert result.statistics == analyze_dataset(tmp_path)
+
+
+@pytest.mark.parametrize(
+    ("width", "height", "orientation", "expected_ratio"),
+    [
+        (200, 100, "landscape", 2.0),
+        (100, 200, "portrait", 0.5),
+        (100, 100, "square", 1.0),
+    ],
+)
+def test_analyze_classifies_valid_image_orientation(
+    width: int,
+    height: int,
+    orientation: str,
+    expected_ratio: float,
+    tmp_path: Path,
+) -> None:
+    """Classify one valid image from its decoded integer dimensions."""
+
+    create_test_image(
+        tmp_path / "image.png",
+        width=width,
+        height=height,
+    )
+
+    stats = analyze_dataset(tmp_path)
+
+    assert stats.min_aspect_ratio == expected_ratio
+    assert stats.max_aspect_ratio == expected_ratio
+    assert stats.average_aspect_ratio == expected_ratio
+    assert stats.orientation_counts == {
+        "landscape": int(orientation == "landscape"),
+        "portrait": int(orientation == "portrait"),
+        "square": int(orientation == "square"),
+    }
+    assert sum(stats.orientation_counts.values()) == stats.valid_images
+    assert set(stats.orientation_counts) == {
+        "landscape",
+        "portrait",
+        "square",
+    }
+
+
+def test_analyze_aggregates_actual_per_image_aspect_ratios(
+    tmp_path: Path,
+) -> None:
+    """Average per-image ratios and exclude invalid supported files."""
+
+    create_test_image(
+        tmp_path / "landscape.png",
+        width=200,
+        height=100,
+    )
+    create_test_image(
+        tmp_path / "portrait.png",
+        width=100,
+        height=200,
+    )
+    create_test_image(
+        tmp_path / "square.png",
+        width=100,
+        height=100,
+    )
+    (tmp_path / "broken.jpg").write_bytes(b"not an image")
+
+    stats = analyze_dataset(tmp_path)
+
+    assert stats.valid_images == 3
+    assert stats.invalid_images == 1
+    assert stats.min_aspect_ratio == 0.5
+    assert stats.max_aspect_ratio == 2.0
+    assert stats.average_aspect_ratio == pytest.approx(
+        (2.0 + 0.5 + 1.0) / 3
+    )
+    assert stats.average_aspect_ratio != (
+        stats.average_width / stats.average_height
+    )
+    assert stats.orientation_counts == {
+        "landscape": 1,
+        "portrait": 1,
+        "square": 1,
+    }
+    assert (
+        stats.min_aspect_ratio
+        <= stats.average_aspect_ratio
+        <= stats.max_aspect_ratio
+    )
+
+
+def test_analyze_empty_and_invalid_only_aspect_statistics(
+    tmp_path: Path,
+) -> None:
+    """Use explicit zero-valued orientation maps without valid images."""
+
+    empty_stats = analyze_dataset(tmp_path)
+    (tmp_path / "broken.jpg").write_bytes(b"not an image")
+    invalid_stats = analyze_dataset(tmp_path)
+
+    for stats in (empty_stats, invalid_stats):
+        assert stats.valid_images == 0
+        assert stats.min_aspect_ratio == 0.0
+        assert stats.max_aspect_ratio == 0.0
+        assert stats.average_aspect_ratio == 0.0
+        assert stats.orientation_counts == {
+            "landscape": 0,
+            "portrait": 0,
+            "square": 0,
+        }
+
+    assert invalid_stats.invalid_images == 1
+
+
+def test_analyze_recursive_and_threshold_aspect_ratio_eligibility(
+    tmp_path: Path,
+) -> None:
+    """Apply recursion and thresholds before aspect aggregation."""
+
+    nested_directory = tmp_path / "nested"
+    nested_directory.mkdir()
+    create_test_image(
+        nested_directory / "landscape.png",
+        width=40,
+        height=20,
+    )
+
+    top_level = analyze_dataset(
+        tmp_path,
+        min_width=10,
+        min_height=10,
+    )
+    recursive_default = analyze_dataset(tmp_path, recursive=True)
+    recursive_lowered = analyze_dataset(
+        tmp_path,
+        recursive=True,
+        min_width=10,
+        min_height=10,
+    )
+
+    assert top_level.valid_images == 0
+    assert top_level.orientation_counts["landscape"] == 0
+    assert recursive_default.valid_images == 0
+    assert recursive_default.min_aspect_ratio == 0.0
+    assert recursive_lowered.valid_images == 1
+    assert recursive_lowered.min_aspect_ratio == 2.0
+    assert recursive_lowered.orientation_counts == {
+        "landscape": 1,
+        "portrait": 0,
+        "square": 0,
+    }
+
+
+def test_analyze_uses_integer_dimensions_without_repeating_metadata(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Classify from integers even when the rounded ratio is square-like."""
+
+    image_path = tmp_path / "near-square.png"
+    create_test_image(image_path)
+    metadata_calls: list[Path] = []
+
+    def near_square_metadata(path: Path) -> dict:
+        metadata_calls.append(path)
+        metadata = get_image_metadata(path)
+        metadata["width"] = 1_000_000_001
+        metadata["height"] = 1_000_000_000
+        return metadata
+
+    monkeypatch.setattr(
+        dataset_analyzer,
+        "get_image_metadata",
+        near_square_metadata,
+    )
+
+    stats = analyze_dataset(tmp_path)
+
+    assert metadata_calls == [image_path]
+    assert round(stats.average_aspect_ratio, 6) == 1.0
+    assert stats.orientation_counts == {
+        "landscape": 1,
+        "portrait": 0,
+        "square": 0,
+    }
+
+
+def test_manifest_analysis_preserves_schema_with_aspect_statistics(
+    tmp_path: Path,
+) -> None:
+    """Expose aggregate aspect data without adding manifest entry fields."""
+
+    create_test_image(
+        tmp_path / "landscape.png",
+        width=80,
+        height=40,
+    )
+
+    result = analyze_dataset_with_manifest(tmp_path)
+    entry = result.manifest_entries[0]
+
+    assert result.statistics.min_aspect_ratio == 2.0
+    assert result.statistics.max_aspect_ratio == 2.0
+    assert result.statistics.average_aspect_ratio == 2.0
+    assert result.statistics.orientation_counts == {
+        "landscape": 1,
+        "portrait": 0,
+        "square": 0,
+    }
+    assert entry.width == 80
+    assert entry.height == 40
+    assert not hasattr(entry, "aspect_ratio")
+    assert not hasattr(entry, "orientation")
+    assert not hasattr(entry, "orientation_category")

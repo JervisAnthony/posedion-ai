@@ -69,6 +69,9 @@ def test_format_valid_manifest_entry_uses_exact_schema() -> None:
         "megapixels",
         "duplicate_group_sha256",
     ]
+    assert "aspect_ratio" not in record
+    assert "orientation" not in record
+    assert "orientation_category" not in record
     assert record == {
         "path": "nested/coral.jpg",
         "extension": "jpeg",

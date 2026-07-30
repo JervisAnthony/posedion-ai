@@ -99,6 +99,12 @@ def _analyze_dataset(
     widths: list[int] = []
     heights: list[int] = []
     pixel_counts: list[int] = []
+    aspect_ratios: list[float] = []
+    orientation_counts = {
+        "landscape": 0,
+        "portrait": 0,
+        "square": 0,
+    }
     size_to_paths: dict[int, list[Path]] = {}
     manifest_entries: list[DatasetManifestEntry] | None = (
         [] if collect_manifest else None
@@ -164,6 +170,14 @@ def _analyze_dataset(
         widths.append(width)
         heights.append(height)
         pixel_counts.append(pixel_count)
+        aspect_ratios.append(width / height)
+
+        if width > height:
+            orientation_counts["landscape"] += 1
+        elif width < height:
+            orientation_counts["portrait"] += 1
+        else:
+            orientation_counts["square"] += 1
 
         if manifest_entries is not None:
             manifest_entries.append(
@@ -197,6 +211,15 @@ def _analyze_dataset(
         stats.average_pixel_count = (
             sum(pixel_counts) / len(pixel_counts)
         )
+
+    if aspect_ratios:
+        stats.min_aspect_ratio = min(aspect_ratios)
+        stats.max_aspect_ratio = max(aspect_ratios)
+        stats.average_aspect_ratio = (
+            sum(aspect_ratios) / len(aspect_ratios)
+        )
+
+    stats.orientation_counts = orientation_counts
 
     duplicate_groups: list[DuplicateImageGroup] = []
     for candidate_paths in size_to_paths.values():
