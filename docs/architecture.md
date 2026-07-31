@@ -50,6 +50,16 @@ flowchart LR
     Y --> Z[Immutable YOLO dataset analysis result]
 ```
 
+YOLO dataset configuration is a third independent library flow:
+
+```mermaid
+flowchart LR
+    AA[YOLO YAML path] --> AB[UTF-8 reader]
+    AB --> AC[PyYAML safe loader]
+    AC --> AD[Schema and class validation]
+    AD --> AE[Immutable YoloDatasetConfiguration]
+```
+
 The image dataset-reporting flow in words: the CLI accepts a dataset
 directory, the loader returns supported candidate paths, the analyzer
 validates each path and collects metadata for valid images. It hashes only same-size valid candidates
@@ -124,6 +134,30 @@ collections use deterministic immutable tuples.
 This analyzer remains separate from `dataset_analyzer.py`. It does not change
 the dataset-summary CLI, any text, JSON, CSV, or Markdown report schema, or
 the JSONL image manifest.
+
+### YOLO dataset-configuration validator
+
+`nautilus_vision/yolo_config.py` owns strict parsing and validation for one
+YOLO dataset YAML file. PyYAML's `safe_load` is the only YAML parsing boundary;
+unsafe and unsupported tags produce the generic invalid-YAML result rather
+than constructing Python objects.
+
+The component constructs dataset-root and split `Path` values without
+resolution, expansion, existence checks, or traversal. It normalizes list or
+contiguous integer-keyed mapping names into ordered immutable
+`YoloClassDefinition` values. A valid optional `nc` declaration is checked
+against the class tuple but is not stored redundantly; the configuration's
+`number_of_classes` property derives the value.
+
+Unknown top-level metadata is ignored. Invalid results expose deterministic
+immutable errors and no partial public configuration. All public models are
+frozen and slotted.
+
+Configuration validation remains separate from `yolo_dataset.py`: it neither
+invokes image-label analysis nor orchestrates configured splits. Split-level
+analysis, observed-versus-configured class validation, and training-readiness
+assessment remain future work. The dataset-summary CLI and JSONL image
+manifest are unchanged.
 
 ### Image metadata utilities
 
@@ -465,8 +499,9 @@ retain those lowercase keys. Text and Markdown uppercase them for display.
 - Duplicate detection is byte-exact; visually similar, resized, recompressed,
   re-encoded, cropped, or metadata-modified images are not detected unless
   their complete bytes match.
-- There is no class-name or dataset-YAML configuration and no split-level
-  training configuration.
+- Configured split paths are not orchestrated automatically, and observed
+  annotation class IDs are not compared with configured classes.
+- There is no training-readiness assessment or YOLO configuration CLI.
 - Segmentation, pose, and oriented-box annotations are not supported.
 - There is no label-analysis CLI.
 - There is no model-training, inference, video, or live-camera pipeline.
