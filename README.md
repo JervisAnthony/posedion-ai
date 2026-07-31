@@ -36,6 +36,8 @@ work.
 - Analyzes explicitly supplied YOLO image and label directories by relative
   pairing keys, reporting missing, orphan, conflicting, valid, invalid,
   empty, total-annotation, and per-class annotation counts.
+- Safely parses and validates library-level YOLO dataset YAML configuration,
+  including split paths, ordered class definitions, and optional class counts.
 - Resizes and pads images while preserving aspect ratio.
 - Analyzes valid and invalid image counts, width and height statistics, valid
   image bytes, normalized extension counts, and decoded valid-image channel
@@ -83,8 +85,8 @@ Install the package in editable mode with its development dependencies:
 python -m pip install -e ".[dev]"
 ```
 
-This installs the declared runtime dependencies, NumPy and OpenCV, plus
-pytest from the `dev` extra.
+This installs the declared runtime dependencies, NumPy, OpenCV, and PyYAML,
+plus pytest from the `dev` extra.
 
 ## Quick start
 
@@ -161,6 +163,32 @@ provided.
 
 See [single-file YOLO validation](docs/yolo-label-validation.md) and
 [YOLO dataset analysis](docs/yolo-dataset-analysis.md).
+
+### YOLO dataset configuration
+
+The library accepts UTF-8 `.yaml` and `.yml` files with an optional dataset
+root, required `train` and `val` split paths, an optional `test` path, class
+names as a list or contiguous integer-keyed mapping, and an optional `nc`
+consistency declaration.
+
+```python
+from poseidon_ai.nautilus_vision.yolo_config import (
+    validate_yolo_dataset_config,
+)
+
+result = validate_yolo_dataset_config("dataset/data.yaml")
+
+if result.is_valid:
+    config = result.configuration
+    print(config.train_path)
+    print(config.number_of_classes)
+```
+
+Configuration validation is library-only. Paths are constructed but not
+traversed or required to exist, split paths are not analyzed automatically,
+and configuration is not connected to model training. No label-analysis or
+configuration CLI is installed. See
+[YOLO dataset configuration](docs/yolo-dataset-configuration.md).
 
 ## Dataset-summary CLI
 
@@ -470,7 +498,7 @@ python -m pytest tests/test_dataset_summary.py -v
 GitHub Actions runs the complete test suite on Ubuntu and Windows with
 Python 3.13.
 
-The suite contained 249 passing tests when this documentation was verified.
+The suite contained 333 passing tests when this documentation was verified.
 
 ## Project structure
 
@@ -480,6 +508,7 @@ posedion-ai/
 │   ├── architecture.md
 │   ├── dataset-summary-cli.md
 │   ├── roadmap.md
+│   ├── yolo-dataset-configuration.md
 │   ├── yolo-dataset-analysis.md
 │   └── yolo-label-validation.md
 ├── scripts/
@@ -493,6 +522,7 @@ posedion-ai/
 │   │   ├── dataset_summary.py
 │   │   ├── image_hash.py
 │   │   ├── image_validator.py
+│   │   ├── yolo_config.py
 │   │   ├── yolo_dataset.py
 │   │   └── yolo_label.py
 │   └── utils/

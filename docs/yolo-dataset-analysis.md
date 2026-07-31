@@ -114,6 +114,17 @@ identifier. Duplicate annotation lines are counted independently.
 
 Filesystem iteration order does not affect the public result.
 
+## Dataset-configuration relationship
+
+`validate_yolo_dataset_config()` validates one YOLO YAML configuration and
+normalizes its split paths and class definitions. `analyze_yolo_dataset()`
+continues to accept explicit image and label roots and does not call the
+configuration validator automatically.
+
+Commit 43 adds no split-level orchestration. Configured class definitions are
+not compared with observed annotation IDs, and single-split analysis remains
+independently callable.
+
 ## Example layout
 
 ```text
@@ -168,11 +179,11 @@ and every count is zero.
 
 ## Current limitations
 
-This component does not infer an `images` or `labels` directory, discover
-training, validation, or test splits, configure class names, or parse dataset
-YAML. It does not decode or validate images, enforce box boundaries, convert
-coordinates to pixels, rewrite labels, or detect duplicate or overlapping
-boxes.
+This component does not infer an `images` or `labels` directory or discover
+training, validation, or test splits. The separate configuration validator
+parses YAML but does not invoke dataset analysis. This component does not
+decode or validate images, enforce box boundaries, convert coordinates to
+pixels, rewrite labels, or detect duplicate or overlapping boxes.
 
 Segmentation polygons, pose keypoints, oriented boxes, model training, and
 inference are not supported. Dataset-summary reports and the JSONL image
