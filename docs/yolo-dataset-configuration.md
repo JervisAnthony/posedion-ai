@@ -210,6 +210,14 @@ any path.
 Configuration validation remains independently usable. It neither invokes
 split planning nor requires configured directories to exist.
 
+## Configured split-execution relationship
+
+The [configured split executor](yolo-split-analysis.md) uses the configuration's
+class definitions for every successfully analyzed split without reparsing
+YAML. Before execution, exact `config_path` equality ensures that an unrelated
+configuration and split plan are not combined. Paths are compared lexically
+without resolution.
+
 ## Current limitations
 
 The component does not inspect or create directories, discover images or

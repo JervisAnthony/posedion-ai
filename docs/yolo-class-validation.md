@@ -109,8 +109,16 @@ contains complete usage, occurrences, unobserved classes, and ordered errors.
 [Configured split planning](yolo-split-planning.md) derives image and label
 directory pairs but performs no annotation or class inspection. Configured-
 class validation continues to consume a completed `YoloDatasetAnalysisResult`
-and is not automatically executed for planned splits. Per-split execution and
-validation orchestration remain future work.
+and remains independently callable. The separate executor coordinates that
+validation only when callers explicitly execute a completed plan.
+
+## Configured split-execution relationship
+
+Configured [split execution](yolo-split-analysis.md) invokes
+`validate_yolo_dataset_classes()` exactly once after every successful split
+analysis. Unknown class IDs remain class-validation diagnostics inside a
+successful operational outcome; they do not become split root failures.
+Configured-class validation remains independently usable.
 
 ## Representative example
 
