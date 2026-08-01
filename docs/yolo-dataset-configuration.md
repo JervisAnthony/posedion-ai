@@ -189,13 +189,24 @@ mismatch. Validation continues across independent fields. File, YAML-syntax,
 and non-mapping-root failures return immediately with their single defined
 error.
 
+## Configured-class validation relationship
+
+The ordered class definitions in a validated `YoloDatasetConfiguration` can
+be supplied to the separate
+[configured-class validator](yolo-class-validation.md) alongside an existing
+`YoloDatasetAnalysisResult`. Configuration validation remains independently
+usable: it does not inspect annotations or invoke dataset analysis. Comparing
+observed annotation IDs with configured definitions is a pure, separate
+composition step.
+
 ## Current limitations
 
 The component does not inspect or create directories, discover images or
-labels, infer label paths, invoke `analyze_yolo_dataset()`, compare observed
-annotation IDs with configured classes, analyze splits, detect leakage, or
-assess training readiness. It does not download data, expand paths, rewrite
-or emit YAML, or access remote URLs.
+labels, infer label paths, invoke `analyze_yolo_dataset()`, analyze splits,
+detect leakage, or assess training readiness. It does not download data,
+expand paths, rewrite or emit YAML, or access remote URLs. Observed-versus-
+configured comparison is available only when callers explicitly compose this
+validated result with an existing dataset analysis.
 
 Dataset-summary reports, the JSONL image manifest, model training, inference,
 and CLI commands remain separate and unchanged.

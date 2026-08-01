@@ -60,6 +60,15 @@ flowchart LR
     AD --> AE[Immutable YoloDatasetConfiguration]
 ```
 
+Configured-class validation composes two completed immutable results:
+
+```mermaid
+flowchart LR
+    AF[YoloDatasetConfiguration] --> AH[Configured-class validator]
+    AG[YoloDatasetAnalysisResult] --> AH
+    AH --> AI[YoloDatasetClassValidationResult]
+```
+
 The image dataset-reporting flow in words: the CLI accepts a dataset
 directory, the loader returns supported candidate paths, the analyzer
 validates each path and collects metadata for valid images. It hashes only same-size valid candidates
@@ -154,10 +163,30 @@ immutable errors and no partial public configuration. All public models are
 frozen and slotted.
 
 Configuration validation remains separate from `yolo_dataset.py`: it neither
-invokes image-label analysis nor orchestrates configured splits. Split-level
-analysis, observed-versus-configured class validation, and training-readiness
-assessment remain future work. The dataset-summary CLI and JSONL image
-manifest are unchanged.
+invokes image-label analysis nor orchestrates configured splits. The
+dataset-summary CLI and JSONL image manifest are unchanged.
+
+### YOLO configured-class validator
+
+`nautilus_vision/yolo_class_validation.py` composes an existing
+`YoloDatasetConfiguration` with an existing `YoloDatasetAnalysisResult` and
+returns immutable configured usage and compatibility diagnostics. It is a
+pure in-memory layer: no path is traversed, no YAML or label is parsed again,
+and no image is opened.
+
+Configured usage follows Commit 42 aggregate semantics and counts annotations
+only from fully valid ordinary paired labels. Unknown detection inspects every
+successfully parsed annotation retained in an ordinary pair. Consequently, a
+partial annotation inside an invalid label can reveal an unknown class ID but
+never affects configured usage. Occurrences retain pairing keys, label paths,
+physical line numbers, and containing-label validity, then use explicit
+deterministic ordering.
+
+Every configured class receives a usage entry. Exact zero-usage configuration
+definitions are returned as informational unobserved classes and do not make
+the result invalid. Split orchestration, class-balance policy, and broader
+training-readiness assessment remain future work. Existing image reports,
+the JSONL manifest, and all CLIs remain unchanged.
 
 ### Image metadata utilities
 
@@ -499,9 +528,10 @@ retain those lowercase keys. Text and Markdown uppercase them for display.
 - Duplicate detection is byte-exact; visually similar, resized, recompressed,
   re-encoded, cropped, or metadata-modified images are not detected unless
   their complete bytes match.
-- Configured split paths are not orchestrated automatically, and observed
-  annotation class IDs are not compared with configured classes.
-- There is no training-readiness assessment or YOLO configuration CLI.
+- Observed annotation class IDs can be compared with configured classes, but
+  configured split paths are not orchestrated automatically.
+- There is no full training-readiness assessment, class-balance policy, or
+  YOLO configuration CLI.
 - Segmentation, pose, and oriented-box annotations are not supported.
 - There is no label-analysis CLI.
 - There is no model-training, inference, video, or live-camera pipeline.
