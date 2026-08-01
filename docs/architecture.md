@@ -60,6 +60,14 @@ flowchart LR
     AD --> AE[Immutable YoloDatasetConfiguration]
 ```
 
+Configured split planning consumes that validated configuration in memory:
+
+```mermaid
+flowchart LR
+    AE[YoloDatasetConfiguration] --> AJ[Configured split planner]
+    AJ --> AK[YoloDatasetSplitPlan]
+```
+
 Configured-class validation composes two completed immutable results:
 
 ```mermaid
@@ -165,6 +173,25 @@ frozen and slotted.
 Configuration validation remains separate from `yolo_dataset.py`: it neither
 invokes image-label analysis nor orchestrates configured splits. The
 dataset-summary CLI and JSONL image manifest are unchanged.
+
+### YOLO configured split planner
+
+`nautilus_vision/yolo_split_plan.py` converts an existing
+`YoloDatasetConfiguration` into immutable train, validation, and optional test
+definitions. Each definition preserves its configured image directory and
+explicitly derives the conventional label directory. The default convention
+replaces the final complete `images` path component with `labels`; callers can
+supply other single-component names.
+
+Planning is pure and in memory. Component matching is exact and
+case-sensitive, and only the final matching image-directory component is
+replaced. No path is resolved, expanded, inspected, created, or traversed, and
+no dataset-analysis or class-validation function is invoked.
+
+The plan describes paths but does not execute them. Per-split discovery,
+analysis, leakage policy, and training-readiness assessment remain separate
+future layers. Existing reports, the JSONL manifest, and all CLIs remain
+unchanged.
 
 ### YOLO configured-class validator
 
@@ -528,8 +555,9 @@ retain those lowercase keys. Text and Markdown uppercase them for display.
 - Duplicate detection is byte-exact; visually similar, resized, recompressed,
   re-encoded, cropped, or metadata-modified images are not detected unless
   their complete bytes match.
-- Observed annotation class IDs can be compared with configured classes, but
-  configured split paths are not orchestrated automatically.
+- Configured split paths can be planned and observed annotation class IDs can
+  be compared with configured classes, but planned splits are not executed or
+  orchestrated automatically.
 - There is no full training-readiness assessment, class-balance policy, or
   YOLO configuration CLI.
 - Segmentation, pose, and oriented-box annotations are not supported.
