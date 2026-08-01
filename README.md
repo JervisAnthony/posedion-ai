@@ -47,6 +47,8 @@ work.
 - Executes configured YOLO split plans in order, preserving per-split dataset
   analysis, configured-class validation, and structured expected root
   failures.
+- Aggregates completed configured split analyses into immutable per-split and
+  cross-split summaries with global diagnostics and configured-class usage.
 - Resizes and pads images while preserving aspect ratio.
 - Analyzes valid and invalid image counts, width and height statistics, valid
   image bytes, normalized extension counts, and decoded valid-image channel
@@ -293,10 +295,44 @@ invalid labels, missing labels, orphan labels, and pairing conflicts remain
 inside successful per-split results rather than becoming operational failures.
 
 The configuration and split plan must already be produced and have matching
-configuration paths. Results contain no cross-split aggregation or readiness
-decision. This remains library-only, no CLI command exists, and training
-readiness is not yet assessed. See
+configuration paths. Split-analysis results remain per-split; callers use the
+separate summary API for cross-split aggregation. No readiness decision is
+made. This remains library-only, no CLI command exists, and training readiness
+is not yet assessed. See
 [YOLO configured split analysis](docs/yolo-split-analysis.md).
+
+### YOLO cross-split summary
+
+An existing configuration and completed split analysis can be summarized
+without executing or reopening any split:
+
+```python
+from poseidon_ai.nautilus_vision.yolo_split_summary import (
+    summarize_yolo_dataset_splits,
+)
+
+summary = summarize_yolo_dataset_splits(
+    configuration,
+    split_analysis,
+)
+
+print(summary.total_images)
+print(summary.total_annotations)
+print(summary.class_usage)
+print(summary.is_complete)
+```
+
+Successful outcomes become immutable per-split summaries, while original
+failure outcomes remain visible and contribute nothing to global image,
+label, pairing, annotation, or diagnostic totals. Configured-class usage is
+aggregated across successful splits with observed split names and globally
+unobserved classes. Unknown-class occurrences from valid and invalid labels
+remain separate.
+
+The configuration and split analysis must already exist. This pure in-memory
+summary performs no filesystem access. Completeness remains operational; it
+does not assess training readiness or detect leakage. No CLI command exists.
+See [YOLO cross-split summary](docs/yolo-split-summary.md).
 
 ## Dataset-summary CLI
 
@@ -608,6 +644,9 @@ python -m pytest tests/test_yolo_split_plan.py -v
 # Focused YOLO configured split-analysis coverage
 python -m pytest tests/test_yolo_split_analysis.py -v
 
+# Focused YOLO cross-split summary coverage
+python -m pytest tests/test_yolo_split_summary.py -v
+
 # Focused formatter and CLI coverage
 python -m pytest tests/test_dataset_summary.py -v
 ```
@@ -615,7 +654,7 @@ python -m pytest tests/test_dataset_summary.py -v
 GitHub Actions runs the complete test suite on Ubuntu and Windows with
 Python 3.13.
 
-The suite contained 432 passing tests when this documentation was verified.
+The suite contained 452 passing tests when this documentation was verified.
 
 ## Project structure
 
@@ -630,6 +669,7 @@ posedion-ai/
 │   ├── yolo-dataset-analysis.md
 │   ├── yolo-label-validation.md
 │   ├── yolo-split-analysis.md
+│   ├── yolo-split-summary.md
 │   └── yolo-split-planning.md
 ├── scripts/
 │   └── create_sample_dataset.py
@@ -647,7 +687,8 @@ posedion-ai/
 │   │   ├── yolo_dataset.py
 │   │   ├── yolo_label.py
 │   │   ├── yolo_split_analysis.py
-│   │   └── yolo_split_plan.py
+│   │   ├── yolo_split_plan.py
+│   │   └── yolo_split_summary.py
 │   └── utils/
 └── tests/
 ```

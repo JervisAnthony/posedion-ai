@@ -120,6 +120,17 @@ analysis. Unknown class IDs remain class-validation diagnostics inside a
 successful operational outcome; they do not become split root failures.
 Configured-class validation remains independently usable.
 
+## Cross-split summary relationship
+
+Each successful split's `class_usage` tuple feeds configured-class aggregation
+in the separate [cross-split summary](yolo-split-summary.md). Existing usage
+continues to exclude every annotation from invalid labels. Unknown occurrences
+retain their `label_is_valid` distinction so valid-label and invalid-label
+diagnostics can be counted separately without reparsing labels.
+
+Configured-class validation remains independently usable and is not invoked
+again by the summary composer.
+
 ## Representative example
 
 ```python

@@ -146,6 +146,14 @@ planned split and preserves each returned `YoloDatasetAnalysisResult` for
 independent inspection. It introduces no cross-split totals, class counts, or
 combined diagnostics.
 
+## Cross-split summary relationship
+
+Existing per-split dataset totals feed the separate immutable
+[cross-split summary](yolo-split-summary.md). Missing-label, orphan-label,
+pairing-conflict, and label-validity counts remain independently available in
+each successful split summary and are summed across successful splits only.
+This composition does not alter or rerun single-split analysis.
+
 ## Example layout
 
 ```text

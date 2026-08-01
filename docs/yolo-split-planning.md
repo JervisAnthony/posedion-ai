@@ -160,6 +160,10 @@ does not rebuild or mutate the plan; it delegates each planned pair to dataset
 analysis and represents expected missing-root or non-directory failures as
 ordered outcomes.
 
+The separate [cross-split summary](yolo-split-summary.md) preserves the same
+plan-relative outcome order after execution. Planning itself remains a pure,
+filesystem-free path-composition step and never builds a summary.
+
 ## Current limitations
 
 This component only plans configured paths. It performs no path existence or
