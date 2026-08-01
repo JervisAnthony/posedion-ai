@@ -116,14 +116,18 @@ Filesystem iteration order does not affect the public result.
 
 ## Dataset-configuration relationship
 
-`validate_yolo_dataset_config()` validates one YOLO YAML configuration and
-normalizes its split paths and class definitions. `analyze_yolo_dataset()`
-continues to accept explicit image and label roots and does not call the
-configuration validator automatically.
+`YoloDatasetAnalysisResult` remains configuration-independent, and
+`analyze_yolo_dataset()` continues to accept explicit image and label roots.
+The separate [configured-class validator](yolo-class-validation.md) consumes
+its immutable ordinary-pair results together with an already validated
+configuration.
 
-Commit 43 adds no split-level orchestration. Configured class definitions are
-not compared with observed annotation IDs, and single-split analysis remains
-independently callable.
+This composition step does not change Commit 42 aggregate class counts or
+totals. It inspects every successfully parsed annotation retained in an
+ordinary pair for unknown configured IDs, including partial annotations from
+invalid files. Those partial annotations remain excluded from aggregate and
+configured usage counts. Single-split analysis remains independently callable,
+and split orchestration is not automatic.
 
 ## Example layout
 

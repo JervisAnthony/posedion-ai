@@ -38,6 +38,9 @@ work.
   empty, total-annotation, and per-class annotation counts.
 - Safely parses and validates library-level YOLO dataset YAML configuration,
   including split paths, ordered class definitions, and optional class counts.
+- Compares observed YOLO annotation class IDs with validated configuration
+  classes in memory, reporting configured usage, unknown occurrences with
+  physical source lines, and unobserved configured classes.
 - Resizes and pads images while preserving aspect ratio.
 - Analyzes valid and invalid image counts, width and height statistics, valid
   image bytes, normalized extension counts, and decoded valid-image channel
@@ -189,6 +192,39 @@ traversed or required to exist, split paths are not analyzed automatically,
 and configuration is not connected to model training. No label-analysis or
 configuration CLI is installed. See
 [YOLO dataset configuration](docs/yolo-dataset-configuration.md).
+
+### YOLO configured-class validation
+
+An already validated configuration can be compared with an already produced
+dataset analysis without reopening, rediscovering, or reparsing any files:
+
+```python
+from poseidon_ai.nautilus_vision.yolo_class_validation import (
+    validate_yolo_dataset_classes,
+)
+
+class_result = validate_yolo_dataset_classes(
+    configuration,
+    dataset_analysis,
+)
+
+print(class_result.is_valid)
+print(class_result.unknown_class_occurrences)
+print(class_result.unobserved_classes)
+```
+
+Every configured class receives a valid-label annotation usage count.
+Unknown IDs retain their exact pairing key, label path, and physical source
+line. Successfully parsed annotations inside otherwise invalid labels are
+inspected for unknown IDs, but no annotation from an invalid label contributes
+to configured usage. Zero-usage configured classes are returned as
+informational unobserved classes.
+
+The configuration and dataset analysis must be produced first. Split
+orchestration is not yet automatic, this API remains library-only, no CLI
+command has been added, and the result is not a full training-readiness
+assessment. See
+[YOLO configured-class validation](docs/yolo-class-validation.md).
 
 ## Dataset-summary CLI
 
@@ -491,6 +527,9 @@ Nautilus Vision discovers these case-insensitive suffixes:
 # Complete suite
 python -m pytest
 
+# Focused YOLO configured-class validation coverage
+python -m pytest tests/test_yolo_class_validation.py -v
+
 # Focused formatter and CLI coverage
 python -m pytest tests/test_dataset_summary.py -v
 ```
@@ -498,7 +537,7 @@ python -m pytest tests/test_dataset_summary.py -v
 GitHub Actions runs the complete test suite on Ubuntu and Windows with
 Python 3.13.
 
-The suite contained 333 passing tests when this documentation was verified.
+The suite contained 354 passing tests when this documentation was verified.
 
 ## Project structure
 
@@ -508,6 +547,7 @@ posedion-ai/
 │   ├── architecture.md
 │   ├── dataset-summary-cli.md
 │   ├── roadmap.md
+│   ├── yolo-class-validation.md
 │   ├── yolo-dataset-configuration.md
 │   ├── yolo-dataset-analysis.md
 │   └── yolo-label-validation.md
@@ -522,6 +562,7 @@ posedion-ai/
 │   │   ├── dataset_summary.py
 │   │   ├── image_hash.py
 │   │   ├── image_validator.py
+│   │   ├── yolo_class_validation.py
 │   │   ├── yolo_config.py
 │   │   ├── yolo_dataset.py
 │   │   └── yolo_label.py

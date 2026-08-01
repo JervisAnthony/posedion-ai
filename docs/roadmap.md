@@ -15,6 +15,8 @@ exploratory entries are not delivery commitments and have no assigned dates.
   pairing-conflict, and annotation-count diagnostics
 - Strict library-level validation and parsing of YOLO dataset YAML
   configuration, split paths, class definitions, and declared class counts
+- In-memory validation of observed annotation class IDs against configured
+  classes, including unknown-ID and unobserved-class diagnostics
 - Supported-image dataset discovery
 - Optional recursive discovery in the internal loader API
 - Optional recursive dataset scanning through the `--recursive` CLI flag
@@ -56,7 +58,6 @@ exploratory entries are not delivery commitments and have no assigned dates.
 ### Planned
 
 - Split-level YOLO dataset orchestration and training-readiness validation
-- Validation of observed annotation class IDs against configured classes
 - Segmentation and pose annotation support
 - Model-training and inference capabilities
 
