@@ -218,6 +218,14 @@ YAML. Before execution, exact `config_path` equality ensures that an unrelated
 configuration and split plan are not combined. Paths are compared lexically
 without resolution.
 
+## Cross-split summary relationship
+
+Configuration classes define the canonical order and names for aggregate
+configured-class usage in the separate
+[cross-split summary](yolo-split-summary.md). The composer does not reparse
+YAML. Globally unobserved classes are the exact existing class-definition
+objects from this configuration.
+
 ## Current limitations
 
 The component does not inspect or create directories, discover images or

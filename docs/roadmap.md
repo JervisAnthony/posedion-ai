@@ -22,6 +22,9 @@ exploratory entries are not delivery commitments and have no assigned dates.
 - Ordered execution of configured YOLO train, validation, and optional test
   split plans with per-split dataset analysis, configured-class validation,
   and structured root-failure outcomes
+- Immutable cross-split YOLO aggregation with per-split summaries, global
+  dataset totals, configured-class usage, observed-split tracking, and
+  unknown-class diagnostics
 - Supported-image dataset discovery
 - Optional recursive discovery in the internal loader API
 - Optional recursive dataset scanning through the `--recursive` CLI flag

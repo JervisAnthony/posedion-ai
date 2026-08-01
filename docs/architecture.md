@@ -88,6 +88,15 @@ flowchart LR
     AP --> AQ[Immutable ordered split outcomes]
 ```
 
+Completed outcomes can then be summarized without repeating execution:
+
+```mermaid
+flowchart LR
+    AR[YoloDatasetConfiguration] --> AT[Cross-split summary composer]
+    AS[YoloConfiguredSplitAnalysisResult] --> AT
+    AT --> AU[Immutable YoloCrossSplitSummary]
+```
+
 The image dataset-reporting flow in words: the CLI accepts a dataset
 directory, the loader returns supported candidate paths, the analyzer
 validates each path and collects metadata for valid images. It hashes only same-size valid candidates
@@ -221,6 +230,30 @@ dataset analysis. It is distinct from label validity, configured-class
 compatibility, dataset quality, and training readiness. No cross-split
 aggregation, leakage detection, reporting, or CLI is introduced. Existing
 image reports and the JSONL manifest remain unchanged.
+
+### YOLO cross-split summary composer
+
+`nautilus_vision/yolo_split_summary.py` combines an existing
+`YoloDatasetConfiguration` with a completed
+`YoloConfiguredSplitAnalysisResult`. Composition is pure and in memory: no
+split is executed again and no file, directory, YAML document, or label is
+opened.
+
+Successful per-split dataset and diagnostic counts are flattened into
+immutable summaries and summed globally. Expected failure objects remain in
+their original outcome positions and contribute zero to every total.
+Configuration classes define canonical aggregate ordering and names, while
+observed split names retain outcome order.
+
+Configured usage continues to exclude annotations from invalid labels.
+Unknown-class occurrences retain separate counts for valid and invalid label
+files; valid-label unknowns contribute to total annotations but not configured
+usage, while invalid-label unknowns remain diagnostic only.
+
+Operational completeness still means only that every planned split was
+analyzed successfully. Training-readiness policy and cross-split leakage
+diagnostics remain future layers. Reports, manifests, and CLIs remain
+unchanged.
 
 ### YOLO configured-class validator
 
@@ -584,8 +617,8 @@ retain those lowercase keys. Text and Markdown uppercase them for display.
 - Duplicate detection is byte-exact; visually similar, resized, recompressed,
   re-encoded, cropped, or metadata-modified images are not detected unless
   their complete bytes match.
-- Configured split paths can be planned and executed with per-split class
-  validation, but no cross-split aggregation or policy is applied.
+- Configured split outcomes can be summarized with global counts and class
+  usage, but no readiness or leakage policy is applied.
 - There is no full training-readiness assessment, class-balance policy, or
   YOLO configuration CLI.
 - Segmentation, pose, and oriented-box annotations are not supported.

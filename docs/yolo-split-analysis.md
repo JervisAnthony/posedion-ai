@@ -149,7 +149,18 @@ results remain fully available.
 semantics. With `recursive=True`, the same value is forwarded to every split,
 and nested discovery remains entirely owned by `analyze_yolo_dataset()`.
 
-## No cross-split aggregation
+## Cross-split summary relationship
+
+Configured split analysis remains the execution layer. The separate
+[cross-split summary composer](yolo-split-summary.md) consumes its completed
+immutable outcomes without executing or retrying any split. Successful
+outcomes provide existing dataset and configured-class results; original
+failure outcomes remain visible in order and are excluded from aggregate
+totals.
+
+Split analysis itself performs no cross-split aggregation.
+
+## No execution-layer cross-split aggregation
 
 Each split remains independent. The result does not calculate global image,
 label, annotation, or class totals; combine diagnostics; inspect overlap;
