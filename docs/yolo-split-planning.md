@@ -151,6 +151,15 @@ Path("images")
 None
 ```
 
+## Split-analysis relationship
+
+This planner remains a pure path-composition layer. A valid immutable plan can
+be passed with its configuration to
+[`analyze_yolo_dataset_splits()`](yolo-split-analysis.md). The execution layer
+does not rebuild or mutate the plan; it delegates each planned pair to dataset
+analysis and represents expected missing-root or non-directory failures as
+ordered outcomes.
+
 ## Current limitations
 
 This component only plans configured paths. It performs no path existence or
@@ -159,6 +168,6 @@ opening, image-label pairing, label parsing, dataset analysis, configured-class
 validation, split statistics, leakage detection, or training-readiness
 assessment.
 
-Automatic execution across planned splits remains future work. Reports, the
-JSONL image manifest, CLIs, training, and inference remain separate and
-unchanged.
+Execution is provided by a separate explicit library call and is never
+triggered by planning itself. Reports, the JSONL image manifest, CLIs,
+training, and inference remain separate and unchanged.

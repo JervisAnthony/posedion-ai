@@ -44,6 +44,9 @@ work.
 - Builds immutable train, validation, and optional test split plans from
   validated YOLO configuration paths, with explicit image and derived label
   directories.
+- Executes configured YOLO split plans in order, preserving per-split dataset
+  analysis, configured-class validation, and structured expected root
+  failures.
 - Resizes and pads images while preserving aspect ratio.
 - Analyzes valid and invalid image counts, width and height statistics, valid
   image bytes, normalized extension counts, and decoded valid-image channel
@@ -255,9 +258,45 @@ unchanged.
 
 The configuration must already be validated. This component only plans paths:
 it performs no resolution, existence checks, traversal, discovery, or dataset
-analysis. Split analysis is not yet automatic, training readiness is not
-assessed, and no CLI command has been added. See
+analysis. Planning never executes analysis automatically; callers use the
+separate explicit split-analysis API. Training readiness is not assessed, and
+no CLI command has been added. See
 [YOLO configured split planning](docs/yolo-split-planning.md).
+
+### YOLO configured split analysis
+
+An existing configuration and immutable split plan can be executed in plan
+order:
+
+```python
+from poseidon_ai.nautilus_vision.yolo_split_analysis import (
+    analyze_yolo_dataset_splits,
+)
+
+result = analyze_yolo_dataset_splits(
+    configuration,
+    split_plan,
+    recursive=True,
+)
+
+for outcome in result.outcomes:
+    print(outcome.split.name)
+
+print(result.is_complete)
+```
+
+Train, validation, and optional test splits delegate to the existing YOLO
+dataset analyzer. Every successful analysis is then passed to configured-class
+validation. Missing or non-directory roots become structured failure outcomes,
+and later splits continue after those expected failures. Unknown class IDs,
+invalid labels, missing labels, orphan labels, and pairing conflicts remain
+inside successful per-split results rather than becoming operational failures.
+
+The configuration and split plan must already be produced and have matching
+configuration paths. Results contain no cross-split aggregation or readiness
+decision. This remains library-only, no CLI command exists, and training
+readiness is not yet assessed. See
+[YOLO configured split analysis](docs/yolo-split-analysis.md).
 
 ## Dataset-summary CLI
 
@@ -566,6 +605,9 @@ python -m pytest tests/test_yolo_class_validation.py -v
 # Focused YOLO configured split-planning coverage
 python -m pytest tests/test_yolo_split_plan.py -v
 
+# Focused YOLO configured split-analysis coverage
+python -m pytest tests/test_yolo_split_analysis.py -v
+
 # Focused formatter and CLI coverage
 python -m pytest tests/test_dataset_summary.py -v
 ```
@@ -573,7 +615,7 @@ python -m pytest tests/test_dataset_summary.py -v
 GitHub Actions runs the complete test suite on Ubuntu and Windows with
 Python 3.13.
 
-The suite contained 404 passing tests when this documentation was verified.
+The suite contained 432 passing tests when this documentation was verified.
 
 ## Project structure
 
@@ -587,6 +629,7 @@ posedion-ai/
 │   ├── yolo-dataset-configuration.md
 │   ├── yolo-dataset-analysis.md
 │   ├── yolo-label-validation.md
+│   ├── yolo-split-analysis.md
 │   └── yolo-split-planning.md
 ├── scripts/
 │   └── create_sample_dataset.py
@@ -603,6 +646,7 @@ posedion-ai/
 │   │   ├── yolo_config.py
 │   │   ├── yolo_dataset.py
 │   │   ├── yolo_label.py
+│   │   ├── yolo_split_analysis.py
 │   │   └── yolo_split_plan.py
 │   └── utils/
 └── tests/

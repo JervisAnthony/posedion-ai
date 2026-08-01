@@ -127,15 +127,24 @@ totals. It inspects every successfully parsed annotation retained in an
 ordinary pair for unknown configured IDs, including partial annotations from
 invalid files. Those partial annotations remain excluded from aggregate and
 configured usage counts. Single-split analysis remains independently callable,
-and split orchestration is not automatic.
+while configured multi-split execution is a separate explicit composition.
 
 ## Split-planning relationship
 
 The separate [configured split planner](yolo-split-planning.md) converts an
 already validated configuration into explicit image and label directory pairs.
 `analyze_yolo_dataset()` still requires callers to supply one image root and
-one label root explicitly. Commit 45 does not invoke analysis automatically;
-executing analysis for every planned split remains future orchestration work.
+one label root explicitly. Planning does not invoke analysis automatically;
+the separate executor consumes a completed plan when callers request it.
+
+## Configured split-execution relationship
+
+`analyze_yolo_dataset()` remains the independently usable single-split
+analysis boundary. The configured
+[split executor](yolo-split-analysis.md) invokes it exactly once for every
+planned split and preserves each returned `YoloDatasetAnalysisResult` for
+independent inspection. It introduces no cross-split totals, class counts, or
+combined diagnostics.
 
 ## Example layout
 

@@ -19,6 +19,9 @@ exploratory entries are not delivery commitments and have no assigned dates.
   classes, including unknown-ID and unobserved-class diagnostics
 - Immutable configured train, validation, and optional test split planning
   with deterministic image-to-label directory derivation
+- Ordered execution of configured YOLO train, validation, and optional test
+  split plans with per-split dataset analysis, configured-class validation,
+  and structured root-failure outcomes
 - Supported-image dataset discovery
 - Optional recursive discovery in the internal loader API
 - Optional recursive dataset scanning through the `--recursive` CLI flag
@@ -59,7 +62,8 @@ exploratory entries are not delivery commitments and have no assigned dates.
 
 ### Planned
 
-- Split-level YOLO dataset orchestration and training-readiness validation
+- Cross-split YOLO training-readiness validation and policy assessment
+- Cross-split leakage and duplicate-content diagnostics
 - Segmentation and pose annotation support
 - Model-training and inference capabilities
 
