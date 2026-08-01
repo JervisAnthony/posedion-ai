@@ -17,6 +17,8 @@ exploratory entries are not delivery commitments and have no assigned dates.
   configuration, split paths, class definitions, and declared class counts
 - In-memory validation of observed annotation class IDs against configured
   classes, including unknown-ID and unobserved-class diagnostics
+- Immutable configured train, validation, and optional test split planning
+  with deterministic image-to-label directory derivation
 - Supported-image dataset discovery
 - Optional recursive discovery in the internal loader API
 - Optional recursive dataset scanning through the `--recursive` CLI flag

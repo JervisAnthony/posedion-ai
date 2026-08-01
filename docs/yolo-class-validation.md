@@ -104,6 +104,14 @@ not errors, and do not invalidate a result.
 Validation does not stop after the first unknown ID. An invalid result still
 contains complete usage, occurrences, unobserved classes, and ordered errors.
 
+## Split-planning relationship
+
+[Configured split planning](yolo-split-planning.md) derives image and label
+directory pairs but performs no annotation or class inspection. Configured-
+class validation continues to consume a completed `YoloDatasetAnalysisResult`
+and is not automatically executed for planned splits. Per-split execution and
+validation orchestration remain future work.
+
 ## Representative example
 
 ```python

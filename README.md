@@ -41,6 +41,9 @@ work.
 - Compares observed YOLO annotation class IDs with validated configuration
   classes in memory, reporting configured usage, unknown occurrences with
   physical source lines, and unobserved configured classes.
+- Builds immutable train, validation, and optional test split plans from
+  validated YOLO configuration paths, with explicit image and derived label
+  directories.
 - Resizes and pads images while preserving aspect ratio.
 - Analyzes valid and invalid image counts, width and height statistics, valid
   image bytes, normalized extension counts, and decoded valid-image channel
@@ -225,6 +228,36 @@ orchestration is not yet automatic, this API remains library-only, no CLI
 command has been added, and the result is not a full training-readiness
 assessment. See
 [YOLO configured-class validation](docs/yolo-class-validation.md).
+
+### YOLO configured split planning
+
+An already validated configuration can produce deterministic split path pairs:
+
+```python
+from poseidon_ai.nautilus_vision.yolo_split_plan import (
+    build_yolo_dataset_split_plan,
+)
+
+result = build_yolo_dataset_split_plan(configuration)
+
+if result.is_valid:
+    for split in result.plan.splits:
+        print(split.name)
+        print(split.image_directory)
+        print(split.label_directory)
+```
+
+Plans contain train, validation, and optional test splits in that order. By
+default, the final complete `images` path component is replaced with `labels`;
+custom image and label component names are supported. Other components,
+including relative `..` segments, spaces, and case, remain lexical and
+unchanged.
+
+The configuration must already be validated. This component only plans paths:
+it performs no resolution, existence checks, traversal, discovery, or dataset
+analysis. Split analysis is not yet automatic, training readiness is not
+assessed, and no CLI command has been added. See
+[YOLO configured split planning](docs/yolo-split-planning.md).
 
 ## Dataset-summary CLI
 
@@ -530,6 +563,9 @@ python -m pytest
 # Focused YOLO configured-class validation coverage
 python -m pytest tests/test_yolo_class_validation.py -v
 
+# Focused YOLO configured split-planning coverage
+python -m pytest tests/test_yolo_split_plan.py -v
+
 # Focused formatter and CLI coverage
 python -m pytest tests/test_dataset_summary.py -v
 ```
@@ -537,7 +573,7 @@ python -m pytest tests/test_dataset_summary.py -v
 GitHub Actions runs the complete test suite on Ubuntu and Windows with
 Python 3.13.
 
-The suite contained 354 passing tests when this documentation was verified.
+The suite contained 404 passing tests when this documentation was verified.
 
 ## Project structure
 
@@ -550,7 +586,8 @@ posedion-ai/
 │   ├── yolo-class-validation.md
 │   ├── yolo-dataset-configuration.md
 │   ├── yolo-dataset-analysis.md
-│   └── yolo-label-validation.md
+│   ├── yolo-label-validation.md
+│   └── yolo-split-planning.md
 ├── scripts/
 │   └── create_sample_dataset.py
 ├── src/poseidon_ai/
@@ -565,7 +602,8 @@ posedion-ai/
 │   │   ├── yolo_class_validation.py
 │   │   ├── yolo_config.py
 │   │   ├── yolo_dataset.py
-│   │   └── yolo_label.py
+│   │   ├── yolo_label.py
+│   │   └── yolo_split_plan.py
 │   └── utils/
 └── tests/
 ```

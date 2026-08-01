@@ -129,6 +129,14 @@ invalid files. Those partial annotations remain excluded from aggregate and
 configured usage counts. Single-split analysis remains independently callable,
 and split orchestration is not automatic.
 
+## Split-planning relationship
+
+The separate [configured split planner](yolo-split-planning.md) converts an
+already validated configuration into explicit image and label directory pairs.
+`analyze_yolo_dataset()` still requires callers to supply one image root and
+one label root explicitly. Commit 45 does not invoke analysis automatically;
+executing analysis for every planned split remains future orchestration work.
+
 ## Example layout
 
 ```text

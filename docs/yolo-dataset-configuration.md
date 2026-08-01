@@ -199,6 +199,17 @@ usable: it does not inspect annotations or invoke dataset analysis. Comparing
 observed annotation IDs with configured definitions is a pure, separate
 composition step.
 
+## Configured split-planning relationship
+
+The split paths in a validated `YoloDatasetConfiguration` can feed the
+separate [configured split planner](yolo-split-planning.md). Planning consumes
+the already constructed train, validation, and optional test paths, derives
+explicit image and label directory pairs, and does not reparse YAML or inspect
+any path.
+
+Configuration validation remains independently usable. It neither invokes
+split planning nor requires configured directories to exist.
+
 ## Current limitations
 
 The component does not inspect or create directories, discover images or
